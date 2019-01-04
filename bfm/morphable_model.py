@@ -80,7 +80,8 @@ class  MorphabelModel(object):
         '''
 
         # shape_para = tf.expand_dims(shape_para, 1)
-        exp_para = tf.expand_dims(exp_para, 1)
+        if len(exp_para.get_shape()) == 1:
+            exp_para = tf.expand_dims(exp_para, 1)
 
         # multiply by Std to have normalized params
         shape_para = shape_para * self.model['shapeEV'][:self.n_shape_para]
