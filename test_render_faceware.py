@@ -55,10 +55,10 @@ def get_normal(vertices, triangles):
 
 def renderFace(params, bfm, face_normals, image_height = 480, image_width = 640):
   # camera position:
-  eye = tf.constant([[0.0, 0.0, -6.0]], dtype=tf.float32)
+  eye = tf.constant([[0.0, 0.0, 3.0]], dtype=tf.float32)
   center = tf.constant([[0.0, 0.0, 0.0]], dtype=tf.float32)
-  world_up = tf.constant([[0.0, -1.0, 0.0]], dtype=tf.float32)
-  light_positions = tf.reshape(eye, [1, 1, 3])
+  world_up = tf.constant([[0.0, 1.0, 0.0]], dtype=tf.float32)
+  light_positions = tf.reshape(-eye, [1, 1, 3])
   light_intensities = tf.ones([1, 1, 3], dtype=tf.float32)
 
   # variables
@@ -72,10 +72,10 @@ def renderFace(params, bfm, face_normals, image_height = 480, image_width = 640)
   tx = np.float32(bfm.get_tex_para('zero', 3))
 
   ## IMPORTANT: Remove scale
-  face_vertices  = bfm.generate_vertices(sp, ep) * -0.00001
+  face_vertices  = bfm.generate_vertices(sp, ep)
   face_triangles = bfm.triangles
   face_colors    = bfm.generate_colors(tx)
-  scaled_vertices = face_vertices * 1.6
+  scaled_vertices = face_vertices * 8e-06
 
   # FIX NORMALS
   # model_rotation = camera_utils.euler_matrices([[0.,0.,0.]])[0, :3, :3]
@@ -100,7 +100,7 @@ def renderFace(params, bfm, face_normals, image_height = 480, image_width = 640)
   render = mesh_renderer.mesh_renderer(
       vertices_world_space, face_triangles, normals_world_space,
       face_colors, eye, center, world_up, light_positions,
-      light_intensities, image_width, image_height)
+      light_intensities, image_width, image_height, perspective=False)
   
   return render
 
@@ -201,7 +201,6 @@ def main():
   with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
     for i in tqdm(range(samples)):
-
       BG = getRandomBG(imgfiles)
 
       params_s, image_s, params_t, image_t = sess.run([src_params2, src_render2, trgt_params, desired_render])
@@ -211,41 +210,10 @@ def main():
       # print(params_s)
       # print(params_t)
       # print(delta_param)
-      # print()
-      # exit()
       np.save('{}/generated_{}_delta.npy'.format(output, i), delta_param)
       np.save('{}/generated_{}_src.npy'.format(output, i), params_s)
       saveImage(image_s, '{}/generated_{}_src.png'.format(output, i))
       saveImage(image_t, '{}/generated_{}_trgt.png'.format(output, i), BG)
-
-      # BIASED BY DESIGN
-      # if i < samples / 4: 
-      #   params_s, image_s, params_t, image_t = sess.run([src_params1, src_render1, trgt_params, desired_render])
-      #   delta_param = params_t - params_s
-      #   params_s = params_s.flatten()
-      #   delta_param = delta_param.flatten()
-      #   np.save('{}/generated_{}_delta.npy'.format(output, i), delta_param)
-      #   np.save('{}/generated_{}_src.npy'.format(output, i), params_s)
-      #   saveImage(image_s, '{}/generated_{}_src.png'.format(output, i))
-      #   saveImage(image_t, '{}/generated_{}_trgt.png'.format(output, i), BG)
-      # else:
-      #   params_s, image_s, params_t, image_t = sess.run([src_params2, src_render2, trgt_params, desired_render])
-      #   delta_param = params_t - params_s
-      #   params_s = params_s.flatten()
-      #   delta_param = delta_param.flatten()
-      #   np.save('{}/generated_{}_delta.npy'.format(output, i), delta_param)
-      #   np.save('{}/generated_{}_src.npy'.format(output, i), params_s)
-      #   saveImage(image_s, '{}/generated_{}_src.png'.format(output, i))
-      #   saveImage(image_t, '{}/generated_{}_trgt.png'.format(output, i), BG)
-      # else:
-      #   params_s, image_s, params_t, image_t = sess.run([src_params3, src_render3, trgt_params, desired_render])
-      #   delta_param = params_t - params_s
-      #   params_s = params_s.flatten()
-      #   delta_param = delta_param.flatten()
-      #   np.save('{}/generated_{}_delta.npy'.format(output, i), delta_param)
-      #   np.save('{}/generated_{}_src.npy'.format(output, i), params_s)
-      #   saveImage(image_s, '{}/generated_{}_src.png'.format(output, i))
-      #   saveImage(image_t, '{}/generated_{}_trgt.png'.format(output, i), BG)
 
 
 if __name__ == '__main__':

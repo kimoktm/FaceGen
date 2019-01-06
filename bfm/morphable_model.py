@@ -32,16 +32,23 @@ class  MorphabelModel(object):
             exit()
             
         # fixed attributes
-        self.nver = self.model['shapePC'].shape[0]/3
+        self.nver = int(self.model['shapePC'].shape[0]/3)
         self.ntri = self.model['tri'].shape[0]
         self.n_shape_para = self.model['shapePC'].shape[1]
         self.n_exp_para = self.model['expPC'].shape[1]
         self.n_tex_para = self.model['texPC'].shape[1]
         self.triangles = self.model['tri']
 
+
+        # # Find the face indices associated with each vertex (for norm calculation)
+        self.vertex2face = np.array([np.where(np.isin(self.triangles.T, vertexInd).any(axis = 0))[0] for vertexInd in range(self.nver)])
+        #np.save('/home/karim/Documents/Development/FacialCapture/FaceGen/vetrex2face.npy', self.vertex2face)
+        #print("Done with V2F")
+        #self.vertex2face = np.load('/home/karim/Documents/Development/FacialCapture/FaceGen/vetrex2face.npy')
+
         # limit PCA params
-        # self.n_shape_para = 10
-        # self.n_tex_para = 10
+        #self.n_shape_para = 80
+        #self.n_tex_para = 80
 
 
     # ------------------------------------- shape: represented with mesh(vertices & triangles(fixed))
@@ -79,7 +86,8 @@ class  MorphabelModel(object):
             vertices: (nver, 3)
         '''
 
-        # shape_para = tf.expand_dims(shape_para, 1)
+        if len(shape_para.get_shape()) == 1:
+            shape_para = tf.expand_dims(shape_para, 1)
         if len(exp_para.get_shape()) == 1:
             exp_para = tf.expand_dims(exp_para, 1)
 
@@ -102,7 +110,10 @@ class  MorphabelModel(object):
             colors: (nver, 3)
         '''
 
-        colors = self.model['texMU'] + tf.tensordot(self.model['texPC'], tex_para*self.model['texEV'], 1)
+        if len(tex_para.get_shape()) == 1:
+            tex_para = tf.expand_dims(tex_para, 1)
+
+        colors = self.model['texMU'] + tf.tensordot(self.model['texPC'][:, :self.n_tex_para], tex_para*self.model['texEV'][:self.n_tex_para], 1)
         colors = tf.reshape(colors, [int(self.nver), 3]) / 255.
         
         return colors

@@ -39,8 +39,8 @@ class  MorphabelModelNP(object):
         self.triangles = self.model['tri']
 
         # limit PCA params
-        # self.n_shape_para = 10
-        # self.n_tex_para = 10
+        self.n_shape_para = 10
+        self.n_tex_para = 10
 
     # ------------------------------------- shape: represented with mesh(vertices & triangles(fixed))
     def get_shape_para(self, type = 'random', std = 1.2):

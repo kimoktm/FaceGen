@@ -55,9 +55,9 @@ def get_normal(vertices, triangles):
 
 def renderFace(params, bfm, face_normals, image_height = 480, image_width = 640):
   # camera position:
-  eye = tf.constant([[0.0, 0.0, -6.0]], dtype=tf.float32)
+  eye = tf.constant([[0.0, 0.0, 3.0]], dtype=tf.float32)
   center = tf.constant([[0.0, 0.0, 0.0]], dtype=tf.float32)
-  world_up = tf.constant([[0.0, -1.0, 0.0]], dtype=tf.float32)
+  world_up = tf.constant([[0.0, 1.0, 0.0]], dtype=tf.float32)
   light_positions = tf.reshape(eye, [1, 1, 3])
   light_intensities = tf.ones([1, 1, 3], dtype=tf.float32)
 
@@ -70,7 +70,7 @@ def renderFace(params, bfm, face_normals, image_height = 480, image_width = 640)
   tx = np.float32(bfm.get_tex_para('zero'))
 
   ## IMPORTANT: Remove scale
-  face_vertices  = bfm.generate_vertices(sp, ep) * -0.00001
+  face_vertices  = bfm.generate_vertices(sp, ep) * 8e-06
   face_triangles = bfm.triangles
   face_colors    = bfm.generate_colors(tx)
 

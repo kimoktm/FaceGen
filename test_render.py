@@ -55,10 +55,10 @@ def get_normal(vertices, triangles):
 
 def renderFace(params, bfm, face_normals, image_height = 480, image_width = 640):
   # camera position:
-  eye = tf.constant([[0.0, 0.0, -6.0]], dtype=tf.float32)
+  eye = tf.constant([[0.0, 0.0, 3.0]], dtype=tf.float32)
   center = tf.constant([[0.0, 0.0, 0.0]], dtype=tf.float32)
-  world_up = tf.constant([[0.0, -1.0, 0.0]], dtype=tf.float32)
-  light_positions = tf.reshape(eye, [1, 1, 3])
+  world_up = tf.constant([[0.0, 1.0, 0.0]], dtype=tf.float32)
+  light_positions = tf.reshape(-eye, [1, 1, 3])
   light_intensities = tf.ones([1, 1, 3], dtype=tf.float32)
 
   # variables
@@ -72,10 +72,10 @@ def renderFace(params, bfm, face_normals, image_height = 480, image_width = 640)
   tx = np.float32(bfm.get_tex_para('zero', 3))
 
   ## IMPORTANT: Remove scale
-  face_vertices  = bfm.generate_vertices(sp, ep) * -0.00001
+  face_vertices  = bfm.generate_vertices(sp, ep)
   face_triangles = bfm.triangles
   face_colors    = bfm.generate_colors(tx)
-  scaled_vertices = face_vertices * 1.6
+  scaled_vertices = face_vertices * 8e-06
 
   # FIX NORMALS
   # model_rotation = camera_utils.euler_matrices([[0.,0.,0.]])[0, :3, :3]
@@ -169,7 +169,7 @@ def main():
   ARGS.poses_size = 6
   ARGS.exp_size = 29
 
-  s = 0.4
+  s = 0.2
   # trgt_params = randomParams(bfm, STD)
   # trgt_pose   = tf.concat([tf.random_uniform([3], -0.2 * s, 0.2 * s), tf.random_uniform([2], -0.18 * s, 0.18 * s), tf.random_uniform([1], -0.4 * s, 0.4 * s)], axis=0)
   trgt_params = randomParams(bfm, STD * s, 'normal')
@@ -184,7 +184,7 @@ def main():
   s = 0.2
   #src_pose2 = tf.concat([tf.random_normal([3], 0, 0.2 * s), tf.random_normal([2], 0, 0.18 * s), tf.random_normal([1], 0, 0.4 * s)], axis=0)
   src_pose2 = tf.concat([tf.random_uniform([3], -0.2 * s, 0.2 * s), tf.random_uniform([2], -0.18 * s, 0.18 * s), tf.random_uniform([1], -0.4 * s, 0.4 * s)], axis=0)
-  s = 0.85
+  s = 0.65
   src_params2 = trgt_params + tf.concat([randomParams(bfm, STD * s), src_pose2[:ARGS.poses_size]], 0)
   #src_params2 = tf.random_uniform([ARGS.exp_size], -STD , STD )
   src_render2 = renderFace(src_params2, bfm, cube_normals, image_height, image_width)
