@@ -39,8 +39,8 @@ class  MorphabelModelNP(object):
         self.triangles = self.model['tri']
 
         # limit PCA params
-        self.n_shape_para = 10
-        self.n_tex_para = 10
+        #self.n_shape_para = 10
+        #self.n_tex_para = 10
 
     # ------------------------------------- shape: represented with mesh(vertices & triangles(fixed))
     def get_shape_para(self, type = 'random', std = 1.2):
@@ -67,6 +67,12 @@ class  MorphabelModelNP(object):
         Returns:
             vertices: (nver, 3)
         '''
+
+        if len(shape_para.shape) == 1:
+            shape_para = np.expand_dims(shape_para, 1)
+        if len(exp_para.shape) == 1:
+            exp_para = np.expand_dims(exp_para, 1)
+
         vertices = self.model['shapeMU'] + self.model['shapePC'][:, :self.n_shape_para].dot(shape_para * self.model['shapeEV'][:self.n_shape_para])
         vertices = vertices + self.model['expPC'].dot(exp_para * self.model['expEV'][:self.n_exp_para])
         vertices = np.reshape(vertices, [int(3), int(len(vertices)/3)], 'F').T
@@ -81,6 +87,10 @@ class  MorphabelModelNP(object):
         Returns:
             colors: (nver, 3)
         '''
+
+        if len(tex_para.shape) == 1:
+            tex_para = np.expand_dims(tex_para, 1)
+
         colors = self.model['texMU'] + self.model['texPC'][:, :self.n_tex_para].dot(tex_para * self.model['texEV'][:self.n_tex_para])
         colors = np.reshape(colors, [int(3), int(len(colors)/3)], 'F').T/255.  
 
