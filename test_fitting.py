@@ -296,8 +296,8 @@ def write_obj_with_colors(obj_name, vertices, triangles, colors):
     # write f: ver ind/ uv ind
     [k, ntri] = triangles.shape
     for i in range(triangles.shape[0]):
-      # s = 'f {} {} {}\n'.format(triangles[i, 0], triangles[i, 1], triangles[i, 2])
-      s = 'f {} {} {}\n'.format(triangles[i, 2], triangles[i, 1], triangles[i, 0])
+      s = 'f {} {} {}\n'.format(triangles[i, 0], triangles[i, 1], triangles[i, 2])
+      #s = 'f {} {} {}\n'.format(triangles[i, 2], triangles[i, 1], triangles[i, 0])
       f.write(s)
 
 
@@ -328,9 +328,11 @@ if __name__ == '__main__':
   path = "../face3dMM/examples/Data/BFM/Out/BFMFace.mat"
 
   # BFM17 Faceonly
-  ARGS_landmarks = [16203, 16235, 16260, 16290, 26869, 27061, 27253, 22481, 22451, 22426, 22394, 22586, 22991, 23303, 23519, 23736, 24312, 24527, 24743, 25055, 25466, 8134, 8143, 8151, 8157, 6986, 7695, 8167, 8639, 9346, 2602, 4146, 4920, 5830, 4674, 3900, 10390, 11287, 12061, 13481, 12331, 11557, 5522, 6026, 7355, 8181, 9007, 10329, 10857, 9730, 8670, 8199, 7726, 6898, 6291, 7364, 8190, 9016, 10088, 8663, 8191, 7719]
   #ARGS_landmarks = [26869, 27061, 27253, 22586, 22991, 23303, 23519, 23736, 24312, 24527, 24743, 25055, 25466, 8134, 8143, 8151, 8157, 6986, 7695, 8167, 8639, 9346, 2602, 4146, 4920, 5830, 4674, 3900, 10390, 11287, 12061, 13481, 12331, 11557, 5522, 6026, 7355, 8181, 9007, 10329, 10857, 9730, 8670, 8199, 7726, 6898, 6291, 7364, 8190, 9016, 10088, 8663, 8191, 7719]
+  ARGS_landmarks = [16203, 16235, 16260, 16290, 26869, 27061, 27253, 22481, 22451, 22426, 22394, 22586, 22991, 23303, 23519, 23736, 24312, 24527, 24743, 25055, 25466, 8134, 8143, 8151, 8157, 6986, 7695, 8167, 8639, 9346, 2602, 4146, 4920, 5830, 4674, 3900, 10390, 11287, 12061, 13481, 12331, 11557, 5522, 6026, 7355, 8181, 9007, 10329, 10857, 9730, 8670, 8199, 7726, 6898, 6291, 7364, 8190, 9016, 10088, 8663, 8191, 7719]
   TRGT_landmarks = [0, 1, 2, 3, 7, 8, 9, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67]
+  #ARGS_landmarks = ARGS_landmarks[-20:]
+  #TRGT_landmarks = TRGT_landmarks[-20:]
   SCALE_FACTOR = 8e-03
   path = "../face3dMM/examples/Data/BFM/Out/BFM17Face.mat"
 
@@ -377,7 +379,7 @@ if __name__ == '__main__':
 
   # Load real-image
   import dlib
-  trgt_render = loadImg('/home/karim/Desktop/face_B9.png', image_width, image_height)
+  trgt_render = loadImg('/home/karim/Desktop/face_6.png', image_width, image_height)
   predictor_path = "/home/karim/Documents/Development/FacialCapture/Facial-Capture/models/shape_predictor_68_face_landmarks.dat"
   detector = dlib.get_frontal_face_detector()
   predictor = dlib.shape_predictor(predictor_path)
@@ -401,7 +403,7 @@ if __name__ == '__main__':
   pixel_loss = tf.reduce_mean(tf.square(mask_t - mask_r))
   landmarks_loss = tf.reduce_mean(tf.square(pvt - pvs))
   reg_loss = (1. if SCALE_FACTOR==8e-06 else 0.1) * tf.reduce_sum(tf.square(albedo)) + tf.reduce_sum(tf.square(identity)) + tf.reduce_sum(tf.square(expressions))
-  loss = 1.1 * pixel_loss + 5* 2.5e-5 * landmarks_loss + 5e-8 * reg_loss # BFM17
+  loss =  1.1 * pixel_loss + 2.5e-5 * landmarks_loss + 5e-8 * reg_loss # BFM17
   if SCALE_FACTOR == 8e-06:
     loss = 1.1 * pixel_loss + 2.5e-5 * landmarks_loss + 1e-5 * reg_loss # BFM09
 
@@ -414,7 +416,7 @@ if __name__ == '__main__':
 
   # Global fitting optimizer
   global_step = tf.train.get_or_create_global_step()
-  decay_learning_rate = tf.train.exponential_decay(0.005, global_step,
+  decay_learning_rate = tf.train.exponential_decay(0.05, global_step,
                                                400, 0.8, staircase=True)
   optimizer = tf.train.AdamOptimizer(decay_learning_rate)
   grads_and_vars = optimizer.compute_gradients(loss, [identity, albedo, expressions, pose, sh_coff])
@@ -435,7 +437,7 @@ if __name__ == '__main__':
     # Fit pose first
     print("Pose fitting")
     for i in range(200):
-      lss, _ = sess.run([landmarks_loss, pos_opt_func])
+      lss, _ = sess.run([pose_loss, pos_opt_func])
       print(lss)
       final_image, final_lnd, trgt_image, trgt_lnd = sess.run([render, pvs, trgt_render, pvt])
       final_lnd[:, 1] = image_height - final_lnd[:, 1]
@@ -457,7 +459,7 @@ if __name__ == '__main__':
 
     # Global fitting
     print("Global fitting")
-    for i in range(2000):
+    for i in range(800):
       lss, _, pl, ll, rl = sess.run([loss, opt_func, pixel_loss, landmarks_loss, reg_loss])
       print(lss)
       print(pl)
@@ -467,8 +469,8 @@ if __name__ == '__main__':
       final_image, final_lnd, trgt_image, trgt_lnd = sess.run([render, pvs, trgt_render, pvt])
       final_lnd[:, 1] = image_height - final_lnd[:, 1]
       trgt_lnd[:, 1]  = image_height - trgt_lnd[:, 1]
-      drawPoints(final_image[0], final_lnd)
-      drawPoints(final_image[0], trgt_lnd, (255, 0, 0))
+      # drawPoints(final_image[0], final_lnd)
+      # drawPoints(final_image[0], trgt_lnd, (255, 0, 0))
       drawPoints(trgt_image[0], trgt_lnd)
 
       numpy_horizontal = np.hstack((final_image[0], trgt_image[0]))
@@ -484,7 +486,7 @@ if __name__ == '__main__':
 
     # Flow field fitting
     print("Flow field fitting")
-    for i in range(1):
+    for i in range(400):
       id_params, ep_params, alb_params, flow_params = sess.run([identity, expressions, colr, flow_field])
       final_image, final_lnd, trgt_image, trgt_lnd = sess.run([render, pvs, trgt_render, pvt])
       lss, _ = sess.run([flow_loss, flow_opt_func])
@@ -502,6 +504,13 @@ if __name__ == '__main__':
 
       if k == 27:
         exit()
+
+    print("Identity:")
+    print(id_params)
+    print("")
+    print("Expressions:")
+    print(ep_params)
+    print("")
 
     # Save Obj file
     bfmNp = MorphabelModelNP(path)

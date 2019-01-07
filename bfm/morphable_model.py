@@ -40,11 +40,14 @@ class  MorphabelModel(object):
         self.triangles = self.model['tri']
 
 
-        # # Find the face indices associated with each vertex (for norm calculation)
+        # Find the face indices associated with each vertex (for norm calculation)
         self.vertex2face = np.array([np.where(np.isin(self.triangles.T, vertexInd).any(axis = 0))[0] for vertexInd in range(self.nver)])
-        #np.save('/home/karim/Documents/Development/FacialCapture/FaceGen/vetrex2face.npy', self.vertex2face)
-        #print("Done with V2F")
-        #self.vertex2face = np.load('/home/karim/Documents/Development/FacialCapture/FaceGen/vetrex2face.npy')
+
+
+        close_mouth = [-1.5090884,-0.15453044,-3.8402557,0.9445557,-1.0569872,1.6198115,-2.239671,-3.6464038,0.6600208,-2.6687174,0.8665768,-3.064968,-1.8411735,-3.880725,2.5869136,-3.0662332,1.6370867,5.5037694,-6.1639357,-5.0047746,-0.3380434,2.9114015,-3.2750301,4.805709,4.3729453,-4.95749,-3.4698102,-2.7745442,3.8737736,4.2599225,-4.411754,1.9909493,5.938608,6.055374,1.3890951,-6.7608314,-2.5041585,5.082385,-5.2096877,4.6854486,3.7670238,3.5578146,-1.1065546,2.6221838,4.11583,-3.3964825,-0.8175518,-5.8215733,4.736252,-2.8394568,-0.63069046,-2.6047778,5.224814,3.3610501,5.473414,5.044716,-4.5016246,3.7234306,-3.8046336,-8.1779585,-2.0457428,-5.306759,-4.610994,-0.6649688,3.8743174,-3.1714785,6.8948298,4.324879,1.8900679,-6.17165,-5.660559,4.2499413,1.7972592,7.2815857,-2.2530048,5.178456,-6.111877,1.4841856,4.9566426,-3.685445,5.26457,-6.939066,-4.6458645,6.5899262,-5.391815,-5.9794455,6.170348,-8.342265,5.389521,3.9339674,-5.3724246,-5.079346,-4.1542244,0.20411202,3.0264375,-0.7128217,-4.4631314,-4.9623137,5.0232368,-4.9445524]
+        close_mouth = np.asarray(close_mouth, dtype=np.float32)
+        close_mouth = np.expand_dims(close_mouth, 1)
+        #self.model['shapeMU'] = self.model['shapeMU'] + self.model['expPC'].dot(close_mouth * self.model['expEV'])
 
         # limit PCA params
         #self.n_shape_para = 80
