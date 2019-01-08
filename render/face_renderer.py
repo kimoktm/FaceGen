@@ -111,7 +111,8 @@ def renderFaces(identity, expressions, pose, albedo, sh_coff, flow_field,
     faces_vertices = tf.reshape(faces_vertices, [batch_size, bfm.nver, 3])
 
     # apply 3D flow field
-    faces_vertices = faces_vertices + flow_field
+    if flow_field is not None:
+        faces_vertices = faces_vertices + flow_field
 
     # calculate normals
     faces_normals = []
