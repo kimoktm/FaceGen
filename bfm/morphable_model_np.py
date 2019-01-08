@@ -3,7 +3,6 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
-import scipy.io as sio
 from . import load
 
 class  MorphabelModelNP(object):
@@ -22,6 +21,7 @@ class  MorphabelModelNP(object):
             'tri_mouth': [114, 3] (start from 1, as a supplement to mouth triangles). ~
             'kpt_ind': [68,] (start from 1). ~
     """
+
     def __init__(self, model_path, model_type = 'BFM'):
         super( MorphabelModelNP, self).__init__()
         if model_type=='BFM':
@@ -31,18 +31,19 @@ class  MorphabelModelNP(object):
             exit()
             
         # fixed attributes
-        self.nver = self.model['shapePC'].shape[0]/3
-        self.ntri = self.model['tri'].shape[0]
-        self.n_shape_para = self.model['shapePC'].shape[1]
-        self.n_exp_para = self.model['expPC'].shape[1]
-        self.n_tex_para = self.model['texPC'].shape[1]
-        self.triangles = self.model['tri']
+        self.nver          = int(self.model['shapePC'].shape[0]/3)
+        self.ntri          = self.model['tri'].shape[0]
+        self.n_shape_para  = self.model['shapePC'].shape[1]
+        self.n_exp_para    = self.model['expPC'].shape[1]
+        self.n_tex_para    = self.model['texPC'].shape[1]
+        self.triangles     = self.model['tri']
+        self.landmarks     = self.model['landmarks']
+        self.landmarks_ids = self.model['landmarks_ids']
 
-        # limit PCA params
-        #self.n_shape_para = 10
-        #self.n_tex_para = 10
+        # Find the face indices associated with each vertex (for fast & differentiable normals calculation)
+        self.vertex2face = np.array([np.where(np.isin(self.triangles.T, vertexInd).any(axis = 0))[0] for vertexInd in range(self.nver)])
 
-    # ------------------------------------- shape: represented with mesh(vertices & triangles(fixed))
+
     def get_shape_para(self, type = 'random', std = 1.2):
         if type == 'zero':
             sp = np.zeros((self.n_shape_para, 1))
@@ -51,6 +52,7 @@ class  MorphabelModelNP(object):
 
         return sp
 
+
     def get_exp_para(self, type = 'random', std = 1.2):
         if type == 'zero':
             ep = np.zeros((self.n_exp_para, 1))
@@ -58,6 +60,7 @@ class  MorphabelModelNP(object):
             ep = np.random.uniform(-std, std, [self.n_exp_para, 1])
 
         return ep 
+
 
     def generate_vertices(self, shape_para, exp_para):
         '''
@@ -95,48 +98,3 @@ class  MorphabelModelNP(object):
         colors = np.reshape(colors, [int(3), int(len(colors)/3)], 'F').T/255.  
 
         return colors
-
-
-    # # -------------------------------------- texture: here represented with rgb value(colors) in vertices.
-    # def get_tex_para(self, type = 'random'):
-    #     if type == 'zero':
-    #         tp = np.zeros((self.n_tex_para, 1))
-    #     elif type == 'random':
-    #         tp = np.random.rand(self.n_tex_para, 1)
-    #     return tp
-
-    # def generate_colors(self, tex_para):
-    #     '''
-    #     Args:
-    #         tex_para: (n_tex_para, 1)
-    #     Returns:
-    #         colors: (nver, 3)
-    #     '''
-    #     colors = self.model['texMU'] + self.model['texPC'].dot(tex_para*self.model['texEV'])
-    #     colors = np.reshape(colors, [int(3), int(len(colors)/3)], 'F').T/255.  
-        
-    #     return colors
-
-
-    # # ------------------------------------------- transformation
-    # # -------------  transform
-    # def rotate(self, vertices, angles):
-    #     ''' rotate face
-    #     Args:
-    #         vertices: [nver, 3]
-    #         angles: [3] x, y, z rotation angle(degree)
-    #         x: pitch. positive for looking down 
-    #         y: yaw. positive for looking left
-    #         z: roll. positive for tilting head right
-    #     Returns:
-    #         vertices: rotated vertices
-    #     '''
-    #     return mesh.transform.rotate(vertices, angles)
-
-    # def transform(self, vertices, s, angles, t3d):
-    #     R = mesh.transform.angle2matrix(angles)
-    #     return mesh.transform.similarity_transform(vertices, s, R, t3d)
-
-    # def transform_3ddfa(self, vertices, s, angles, t3d): # only used for processing 300W_LP data
-    #     R = mesh.transform.angle2matrix_3ddfa(angles)
-    #     return mesh.transform.similarity_transform(vertices, s, R, t3d)

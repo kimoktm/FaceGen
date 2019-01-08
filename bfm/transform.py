@@ -17,6 +17,7 @@ def angle2matrix(angles):
     Returns:
         R: [3, 3]. rotation matrix.
     '''
+
     # angles = tf.cast(angles, dtype=tf.float32)
     x, y, z = tf_deg2rad(angles[0]), tf_deg2rad(angles[1]), tf_deg2rad(angles[2])
 
@@ -64,6 +65,7 @@ def rotate(vertices, angles):
 
     return rotated_vertices
 
+
 def similarity_transform(vertices, s, angles, t3d):
     ''' similarity transform. dof = 7.
     3D: s*R.dot(X) + t
@@ -76,12 +78,6 @@ def similarity_transform(vertices, s, angles, t3d):
     Returns:
         transformed vertices: [nver, 3]
     '''
-
-    # vertices = tf.cast(vertices, dtype=tf.float32)
-
-    # TO DO: DELETE
-    s =  8e-04 + s * 1e-05
-
 
     t3d = tf.squeeze(t3d)
     transformed_vertices = s * rotate(vertices, angles) + t3d

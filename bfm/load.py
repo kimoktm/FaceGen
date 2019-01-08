@@ -5,7 +5,7 @@ from __future__ import print_function
 import numpy as np
 import scipy.io as sio
 
-### ---------------------------------  load BFM data
+
 def load_BFM(model_path):
     ''' load BFM 3DMM model
     Args:
@@ -25,49 +25,27 @@ def load_BFM(model_path):
         You can change codes according to your own saved data.
         Just make sure the model has corresponding attributes.
     '''
+
     C = sio.loadmat(model_path)
     model = C['model']
     model = model[0,0]
 
     # change dtype from double(np.float64) to np.float32, 
     # since big matrix process(espetially matrix dot) is too slow in python.
-    model['shapeMU'] = model['shapeMU'].astype(np.float32)
-    model['shapePC'] = model['shapePC'].astype(np.float32)
-    model['shapeEV'] = model['shapeEV'].astype(np.float32)
-    model['expEV']   = model['expEV'].astype(np.float32)
-    model['expPC']   = model['expPC'].astype(np.float32)
-    model['texMU']   = model['texMU'].astype(np.float32)
-    model['texPC']   = model['texPC'].astype(np.float32)
-    model['texEV']   = model['texEV'].astype(np.float32)
-    model['tri']     = model['tri'].astype(np.int32)
+    model['shapeMU']       = model['shapeMU'].astype(np.float32)
+    model['shapePC']       = model['shapePC'].astype(np.float32)
+    model['shapeEV']       = model['shapeEV'].astype(np.float32)
+    model['expEV']         = model['expEV'].astype(np.float32)
+    model['expPC']         = model['expPC'].astype(np.float32)
+    model['texMU']         = model['texMU'].astype(np.float32)
+    model['texPC']         = model['texPC'].astype(np.float32)
+    model['texEV']         = model['texEV'].astype(np.float32)
+    model['tri']           = model['tri'].astype(np.int32)
+    model['landmarks']     = model['landmarks'].astype(np.int32)
+    model['landmarks_ids'] = model['landmarks_ids'].astype(np.int32)
 
     return model
 
-def load_BFM_info(path = 'BFM_info.mat'):
-    ''' load 3DMM model extra information
-    Args:
-        path: path to BFM info. 
-    Returns:  
-        model_info:
-            'symlist': 2 x 26720
-            'symlist_tri': 2 x 52937
-            'segbin': 4 x n (0: nose, 1: eye, 2: mouth, 3: cheek)
-            'segbin_tri': 4 x ntri 
-            'face_contour': 1 x 28
-            'face_contour_line': 1 x 512
-            'face_contour_front': 1 x 28
-            'face_contour_front_line': 1 x 512
-            'nose_hole': 1 x 142
-            'nose_hole_right': 1 x 71
-            'nose_hole_left': 1 x 71
-            'parallel': 17 x 1 cell
-            'parallel_face_contour': 28 x 1 cell
-            'uv_coords': n x 2
-    '''
-    C = sio.loadmat(path)
-    model_info = C['model_info']
-    model_info = model_info[0,0]
-    return model_info
 
 def load_uv_coords(path = 'BFM_UV.mat'):
     ''' load uv coords of BFM
@@ -76,9 +54,12 @@ def load_uv_coords(path = 'BFM_UV.mat'):
     Returns:  
         uv_coords: [nver, 2]. range: 0-1
     '''
+
     C = sio.loadmat(path)
     uv_coords = C['UV'].copy(order = 'C')
+
     return uv_coords
+
 
 def load_pncc_code(path = 'pncc_code.mat'):
     ''' load pncc code of BFM
@@ -89,16 +70,8 @@ def load_pncc_code(path = 'pncc_code.mat'):
     Returns:  
         pncc_code: [nver, 3]
     '''
+
     C = sio.loadmat(path)
     pncc_code = C['vertex_code'].T
-    return pncc_code
 
-## 
-def get_organ_ind(model_info):
-    ''' get nose, eye, mouth index
-    '''
-    valid_bin = model_info['segbin'].astype(bool)
-    organ_ind = np.nonzero(valid_bin[0,:])[0]
-    for i in range(1, valid_bin.shape[0] - 1):
-        organ_ind = np.union1d(organ_ind, np.nonzero(valid_bin[i,:])[0])
-    return organ_ind.astype(np.int32)
+    return pncc_code
