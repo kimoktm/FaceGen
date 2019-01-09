@@ -1,6 +1,7 @@
 from __future__ import division
 from __future__ import print_function
 
+import math
 import numpy as np
 import tensorflow as tf
 
@@ -98,8 +99,16 @@ def renderFace(identity, albedo, expressions, pose, sh_coff, flow_field,
 
 
 def renderFaces(identity, expressions, pose, albedo, sh_coff, flow_field,
-                                bfm, perspective=False, image_width = 256, image_height = 256,
-                                batch_size=None): 
+                bfm, perspective=False, image_width = 256, image_height = 256,
+                batch_size=None): 
+
+    """ Generate and render faces given the model parameters.
+    Identity, expressions, pose and albedo are normalized (multiplied by Std)
+    Pose == [euler rotation, translation, scale]
+    - rotations are multiplied by PI
+    - scale is shifted by 1 for stable training 
+
+    """
 
     if batch_size is None:
         batch_size = identity.shape[0].value       
@@ -142,10 +151,10 @@ def renderFaces(identity, expressions, pose, albedo, sh_coff, flow_field,
 
     # apply pose
     if pose.get_shape()[1] == 6:
-        model_rotation  = camera_utils.euler_matrices(pose[:, :3])[:, :4, :3]
+        model_rotation  = camera_utils.euler_matrices(pose[:, :3] * math.pi)[:, :4, :3]
         model_translate = pose[:, 3:]
         if not perspective:
-            scale = tf.reshape(pose[:, -1], [batch_size, 1, 1])
+            scale = tf.reshape(pose[:, -1], [batch_size, 1, 1]) + 1.
             faces_vertices = tf.multiply(faces_vertices, scale)
             model_translate = tf.concat([pose[:, 3:5], tf.zeros([batch_size, 1])], axis = 1)
 
@@ -160,10 +169,9 @@ def renderFaces(identity, expressions, pose, albedo, sh_coff, flow_field,
     center = tf.constant([0.0, 0.0, 0.0], dtype=tf.float32)
     world_up = tf.constant([0.0, 1.0, 0.0], dtype=tf.float32)
 
-    render, projected_vertices = mesh_renderer.render(
-                                                                faces_vertices, bfm.triangles, faces_normals,
-                                                                faces_colors, eye, center, world_up, image_width, image_height,
-                                                                perspective=perspective)
+    render, projected_vertices = mesh_renderer.render(faces_vertices, bfm.triangles, faces_normals,
+                                                      faces_colors, eye, center, world_up, image_width, image_height,
+                                                      perspective=perspective)
 
     # get projected landmarks and flip them along Y-axis
     projected_landmarks = tf.gather(projected_vertices, bfm.landmarks, axis=1)[:, :, :2]

@@ -109,7 +109,8 @@ class  MorphabelModel(object):
         if len(tex_para.get_shape()) == 1:
             tex_para = tf.expand_dims(tex_para, 1)
 
-        colors = self.model['texMU'] + tf.tensordot(self.model['texPC'][:, :self.n_tex_para], tex_para*self.model['texEV'][:self.n_tex_para], 1)
+        tex_para = tex_para * self.model['texEV'][:self.n_tex_para]
+        colors = self.model['texMU'] + tf.tensordot(self.model['texPC'][:, :self.n_tex_para], tex_para, 1)
         colors = tf.reshape(colors, [int(self.nver), 3]) / 255.
         
         return colors

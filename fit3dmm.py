@@ -181,9 +181,7 @@ if __name__ == '__main__':
     identity          = tf.Variable(tf.zeros([BATCH_SIZE, bfm.n_shape_para]))
     albedo            = tf.Variable(tf.zeros([BATCH_SIZE, bfm.n_tex_para]))
     expressions       = tf.Variable(tf.zeros([BATCH_SIZE, bfm.n_exp_para]))
-    pose              = np.zeros([BATCH_SIZE, 6], dtype=np.float32)
-    pose[:, -1]       = 1.0
-    pose              = tf.Variable(pose)
+    pose              = tf.Variable(tf.zeros([BATCH_SIZE, 6]))
     sh_coff           = np.zeros([BATCH_SIZE, 9, 3], dtype=np.float32)
     sh_coff[:, 0, 0]  = 1.0
     sh_coff[:, 0, 1]  = 1.0

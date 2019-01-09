@@ -125,7 +125,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', help = 'Output directory')
     parser.add_argument('--validation_dir', help = 'Output directory')
     parser.add_argument('--imgs_per_video', help = 'Images per video', default=1000)
-    parser.add_argument('--videos_num', help = 'Number of videos', default=114)
+    parser.add_argument('--videos_num', help = 'Number of videos', default=101)
 
     FLAGS, unparsed = parser.parse_known_args()
 
