@@ -36,7 +36,7 @@ def drawPoints(img, points, color=(0, 255, 0)):
 
 
 def cropFace(frame, landmarks, size=256, ratio=2):
-    landmarks = np.asarray(landmarks, dtype=int)
+    landmarks = np.asarray(landmarks, dtype=np.int32)
     x, y, w, h = cv2.boundingRect(landmarks)
 
     # scale roi

@@ -47,16 +47,27 @@ def load_BFM(model_path):
     return model
 
 
-def load_uv_coords(path = 'BFM_UV.mat'):
-    ''' load uv coords of BFM
+def load_uv_coords(obj_path):
+    """Returns the shape vertices and the list of vertex indices for each mesh face.
+    
     Args:
-        path: path to data.
-    Returns:  
-        uv_coords: [nver, 2]. range: 0-1
-    '''
+        fName (str): Filename of .obj file
+        dataToImport (list): A list containing strings that indicate what part of the .obj file to read (``v`` = geometric vertices, ``f`` = face indices). Note that all of the .obj files for a given 3DMM have the same face indices.
+    
+    Returns:
+        ndarray or tuple: the vertex coordinates, the vertex indices for each face, or both
+    """
+        
+    with open(obj_path) as fd:
+        uv_coords = []
 
-    C = sio.loadmat(path)
-    uv_coords = C['UV'].copy(order = 'C')
+        for line in fd:
+            if line.startswith('vt'):
+                uv_coords.append([float(num) for num in line[3:].split(' ')])
+            else:
+                continue
+
+    uv_coords = np.array(uv_coords)
 
     return uv_coords
 

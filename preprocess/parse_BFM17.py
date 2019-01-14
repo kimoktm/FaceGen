@@ -27,18 +27,35 @@ def normalizeModel(model):
     scale factors to normalize stds - emperically estimated
     """
 
-    SHAPE_SCALE = 1e-2 / 5.25
-    TEX_SCALE   = 1e-1 / 1.45 * 1.4
-    EXP_SCALE   = 1e-2 / 3.0
+    # SHAPE_SCALE = 1e-2 / 5.25
+    # EXP_SCALE   = 1e-2 / 3.0
+    # TEX_SCALE   = 1e-1 / 1.45 * 1.4
+    # MESH_SCALE  = 8e-03
+
+    print(np.mean(model['shapeEV']))
+    print(np.mean(model['expEV']))
+    print(np.mean(model['texEV']))
+
+    # FACTOR = 100
+    FACTOR = 20
+    SHAPE_SCALE = 1e-2 / 5.25 * FACTOR
+    EXP_SCALE   = 1e-2 / 3.0 * FACTOR
+    TEX_SCALE   = 1e-1 / 1.45 * 1.4 * FACTOR
     MESH_SCALE  = 8e-03
 
     model['shapeEV'] = model['shapeEV'] * SHAPE_SCALE
+    model['expEV']   = model['expEV'] * EXP_SCALE
     model['texMU']   = model['texMU'] * 255.0
     model['texEV']   = model['texEV'] * 255.0 * TEX_SCALE
-    model['expEV']   = model['expEV'] * EXP_SCALE
     model['shapeMU'] = model['shapeMU'] * MESH_SCALE
     model['shapePC'] = model['shapePC'] * MESH_SCALE
     model['expPC']   = model['expPC'] * MESH_SCALE
+
+    print("")
+    print(np.mean(model['shapeEV']))
+    print(np.mean(model['expEV']))
+    print(np.mean(model['texEV']))
+
 
     return model
 

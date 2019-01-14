@@ -5,6 +5,7 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 
+import os
 import cv2
 import dlib
 
@@ -32,6 +33,11 @@ def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=620):
     for det in dets:
         faceRectangle = dlib.rectangle(int(det.left() / imgScale), int(det.top() / imgScale), int(det.right() / imgScale), int(det.bottom() / imgScale))
         dlibShape = predictor(img, faceRectangle)
+        # shape2D = np.array([[(det.left() / imgScale), (det.top() / imgScale)], \
+        #                     [(det.right() / imgScale), (det.top() / imgScale)], \
+        #                     [(det.right() / imgScale), (det.bottom() / imgScale)],
+        #                     [(det.left() / imgScale), (det.bottom() / imgScale)]])
+
         shape2D = np.array([[p.x, p.y] for p in dlibShape.parts()])
         shape2D = shape2D.T
         shapes2D.append(shape2D)
@@ -90,6 +96,20 @@ def loadImgs(paths, masked_landmarks, image_width, image_height):
     return imgs, lnds
 
 
+
+CURR_FRAME = 0
+def loadNextFrame(vid_path, masked_landmarks, image_width, image_height):
+    global CURR_FRAME
+    frame_path = os.path.join(vid_path, str(CURR_FRAME) + '.png')
+    CURR_FRAME = CURR_FRAME + 1
+
+    img, pvt = loadImg(frame_path, masked_landmarks, image_width, image_height)
+    img = tf.expand_dims(img, 0)
+    pvt = tf.expand_dims(pvt, 0)
+
+    return img, pvt
+
+
 def writeObj(obj_name, vertices, triangles, colors):
     ''' Save 3D face model with texture represented by colors.
     Args:
@@ -118,7 +138,7 @@ def writeObj(obj_name, vertices, triangles, colors):
             s = 'f {} {} {}\n'.format(triangles[i, 0], triangles[i, 1], triangles[i, 2])
             f.write(s)
 
-xx = 0
+
 def showImages(left_images, right_images, left_landmarks, right_landmarks, image_height=256, show_markers=True):
     batch_size = left_images.shape[0]
     stacked_imgs = []
@@ -146,12 +166,7 @@ def showImages(left_images, right_images, left_landmarks, right_landmarks, image
     b,g,r        = cv2.split(stacked_imgs)
     stacked_imgs = cv2.merge([r,g,b])
 
-    global xx
-    if xx % 10:
-        cv2.imwrite('/home/karim/Desktop/differentiable_renderer/' + str(xx) + '.jpg', stacked_imgs * 255)
-    xx = xx + 1
     cv2.imshow('Optimizer', stacked_imgs)
-
     k = cv2.waitKey(1)
 
     if k == 27:
@@ -160,30 +175,18 @@ def showImages(left_images, right_images, left_landmarks, right_landmarks, image
 
 if __name__ == '__main__':
     tf.reset_default_graph()
-    tf.set_random_seed(125)
 
-    BATCH_SIZE   = 8
+    BATCH_SIZE   = 1
     perspective  = False
-    image_height = 256
-    image_width  = 256
-    path         = "../face3dMM/examples/Data/BFM/Out/BFM17Face_raw.mat"
-    pth          = '/home/karim/Desktop/'
-    imgs         = [pth + 'face_1.png', pth + 'face_2.png', pth + 'face_3.png', pth + 'face_4.png', pth + 'face_5.png', pth + 'face_6.png', pth + 'face_7.png',  pth + 'face_8.png']
-    
-    pth          = '/home/karim/Desktop/data/'
-    imgs         = [pth + 'img_1.png', pth + 'img_2.png', pth + 'img_3.png', pth + 'img_4.png', pth + 'img_5.png', pth + 'img_6.png', pth + 'img_7.png',  pth + 'img_8.png']
-    imgs         = imgs[:BATCH_SIZE]
+    image_height = 512
+    image_width  = 512  
+    path         = "../face3dMM/examples/Data/BFM/Out/BFM17Face.mat"
+    vid_path     = '/home/karim/Documents/Development/FacialCapture/Facial-Capture/data/craig/orig'
 
 
     bfm = MorphabelModel(path)
     ARGS_landmarks = bfm.landmarks
     TRGT_landmarks = bfm.landmarks_ids
-
-    landmarks_weights = np.ones([68, 1], dtype=np.float32)
-    landmarks_weights[:6]    = 0.5 # left cheeck
-    landmarks_weights[10:16] = 0.5 # right cheeck
-    landmarks_weights[7:9]   = 0.8 # bottom chin
-    landmarks_weights = landmarks_weights[TRGT_landmarks]
 
 
     # Start face
@@ -201,8 +204,9 @@ if __name__ == '__main__':
 
 
     # Load real-image
-    trgt_render, pvt = loadImgs(imgs, TRGT_landmarks, image_width, image_height)
-
+    trgt_render, pvt = loadNextFrame(vid_path, TRGT_landmarks, image_width, image_height)
+    trgt_render = tf.Variable(trgt_render)
+    pvt = tf.Variable(pvt)
 
     # mask target
     alpha       = render[:, :, :, -1]
@@ -213,31 +217,29 @@ if __name__ == '__main__':
 
     # loss function
     pixel_loss     = tf.reduce_mean(tf.square(mask_t - mask_r))
-    landmarks_loss = tf.reduce_mean(tf.square(pvt - pvs) * landmarks_weights)
-    reg_loss       = tf.reduce_sum(tf.square(albedo)) + tf.reduce_sum(tf.square(identity)) + tf.reduce_sum(tf.square(expressions))
+    landmarks_loss = tf.reduce_mean(tf.square(pvt - pvs))
+    reg_loss       = tf.reduce_sum(tf.square(albedo)) * 0.1 + tf.reduce_sum(tf.square(identity)) + tf.reduce_sum(tf.square(expressions))
 
     # Pose optimizer
     pose_loss = landmarks_loss + reg_loss
-    pos_optimizer = tf.train.AdamOptimizer(0.05)
+    pos_optimizer = tf.train.AdamOptimizer(0.2)
     pos_grads_and_vars = pos_optimizer.compute_gradients(pose_loss, [pose, identity, expressions])
     pos_opt_func = pos_optimizer.apply_gradients(pos_grads_and_vars)
 
 
     # Global fitting optimizer
-    loss = 1.1 * pixel_loss + 5e-5 * landmarks_loss + 1e-5 * reg_loss
-    loss = 1.1 * pixel_loss + 1.5e-4 * landmarks_loss + 1e-5 * reg_loss
-
-    # loss = 1.1 * pixel_loss + 2.5e-5 * landmarks_loss + 5e-8 * reg_loss
+    loss = 1.1 * pixel_loss + 2.5e-5 * landmarks_loss + 5e-8 * reg_loss
+    loss = 1.1 * pixel_loss + 5e-5 * landmarks_loss + 5e-8 * reg_loss
 
     global_step = tf.train.get_or_create_global_step()
-    decay_learning_rate = tf.train.exponential_decay(0.005, global_step, 400, 0.8, staircase=True)
-    optimizer = tf.train.AdamOptimizer(decay_learning_rate)
-    grads_and_vars = optimizer.compute_gradients(loss, [pose, identity, albedo, expressions, sh_coff])
+    decay_learning_rate = tf.train.exponential_decay(0.02, global_step, 400, 0.8, staircase=True)
+    optimizer = tf.train.AdamOptimizer(0.01)
+    grads_and_vars = optimizer.compute_gradients(loss, [identity, albedo, expressions, pose, sh_coff])
     opt_func = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
 
 
     # Flow field optimizer
-    flow_loss = 1.1 * pixel_loss + tf.reduce_mean(flow_field) + 5e-6 * reg_loss
+    flow_loss =  1.1 * pixel_loss + 1 * tf.reduce_mean(flow_field) + 5e-6 * reg_loss
     flow_optimizer = tf.train.AdamOptimizer(0.000005)
     flow_grads_and_vars = flow_optimizer.compute_gradients(flow_loss, [identity, albedo, expressions, pose, sh_coff, flow_field])
     flow_opt_func = flow_optimizer.apply_gradients(flow_grads_and_vars, global_step=global_step)
@@ -247,39 +249,46 @@ if __name__ == '__main__':
         sess.run(tf.global_variables_initializer())
 
         # Fit pose first
-        print("Pose fitting")
-        for i in tqdm(range(200)):
-            lss, _ = sess.run([pose_loss, pos_opt_func])
-            prog_image, prog_lnd, trgt_image, trgt_lnd = sess.run([render, pvs, trgt_render, pvt])
-            showImages(prog_image, trgt_image, prog_lnd, trgt_lnd, image_height)
+        print("Show video")
+        for i in tqdm(range(100)):
+            xf, xl = loadNextFrame(vid_path, TRGT_landmarks, image_width, image_height)
+            up_frame = tf.assign(trgt_render, xf)
+            up_lnd = tf.assign(pvt, xl)
+
+            sess.run([up_frame, up_lnd])
+
+            # Fit pose first
+            print("Pose fitting")
+            for i in tqdm(range(0)):
+                lss, _ = sess.run([pose_loss, pos_opt_func])
+                prog_image, prog_lnd, trgt_image, trgt_lnd = sess.run([render, pvs, trgt_render, pvt])
+                showImages(prog_image, trgt_image, prog_lnd, trgt_lnd, image_height)
 
 
-        # Global fitting
-        print("Global fitting")
-        for i in tqdm(range(1000)):
-            lss, _, pl, ll, rl = sess.run([loss, opt_func, pixel_loss, landmarks_loss, reg_loss])
-            grds = sess.run([grads_and_vars])
-            #print(grds[0])
-            prog_image, prog_lnd, trgt_image, trgt_lnd = sess.run([render, pvs, trgt_render, pvt])
-            showImages(prog_image, trgt_image, prog_lnd, trgt_lnd, image_height, False)
+            # Global fitting
+            print("Global fitting")
+            for i in tqdm(range(300)):
+                lss, _, pl, ll, rl = sess.run([loss, opt_func, pixel_loss, landmarks_loss, reg_loss])
+                prog_image, prog_lnd, trgt_image, trgt_lnd = sess.run([render, pvs, trgt_render, pvt])
+                showImages(prog_image, trgt_image, prog_lnd, trgt_lnd, image_height, False)
 
 
-        # Flow field fitting
-        print("Flow field fitting")
-        for i in tqdm(range(0)):
-            lss, _ = sess.run([flow_loss, flow_opt_func])
-            id_params, ep_params, alb_params, flow_params = sess.run([identity, expressions, albedo, flow_field])
-            prog_image, prog_lnd, trgt_image, trgt_lnd = sess.run([render, pvs, trgt_render, pvt])
-            showImages(prog_image, trgt_image, prog_lnd, trgt_lnd, image_height, False)
+            # Flow field fitting
+            print("Flow field fitting")
+            for i in tqdm(range(0)):
+                lss, _ = sess.run([flow_loss, flow_opt_func])
+                id_params, ep_params, alb_params, flow_params = sess.run([identity, expressions, colr, flow_field])
+                prog_image, prog_lnd, trgt_image, trgt_lnd = sess.run([render, pvs, trgt_render, pvt])
+                showImages(prog_image, trgt_image, prog_lnd, trgt_lnd, image_height, False)
 
 
     # # Save Obj file
     # bfmNp = MorphabelModelNP(path)
-    # final_ver = bfmNp.generate_vertices(id_params[0], ep_params[0]) + flow_params[0]
+    # final_ver = bfmNp.generate_vertices(id_params, ep_params) * SCALE_FACTOR + flow_params
     # final_ver = final_ver / np.amax(final_ver) * 1000.
-    # #final_alb = alb_params[0]
-    # final_alb = bfmNp.generate_colors(alb_params[0])
-    # writeObj('/home/karim/Desktop/optimized_face.obj', final_ver, bfmNp.triangles, final_alb)
+    # final_alb = alb_params
+    # #final_alb = bfmNp.generate_colors(alb_params)
+    # write_obj_with_colors('/home/karim/Desktop/optimized_face.obj', final_ver, bfmNp.triangles, final_alb)
     print("Done :)")
 
     k = cv2.waitKey(0)
