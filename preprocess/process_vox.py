@@ -59,8 +59,8 @@ def cropLandmarks(frame, landmarks, size=256, ratio=1.8):
     h, w, channels = roi.shape
 
     # If the cropped img is small or face region mx is small
-    if h != w or w < 120 or mx < 120:
-        print("Skipped in Key Crop")
+    if h != w or w < 200 or mx < 200:
+        # print("Skipped in Key Crop")
         return None, None
 
     landmarks[:, 0] = landmarks[:, 0] - x
@@ -72,9 +72,9 @@ def cropLandmarks(frame, landmarks, size=256, ratio=1.8):
     return roi, landmarks
 
 
-def cropFace(frame, bounding_box, size=256, ratio=2):
+def cropFace(frame, bounding_box, size=256, ratio=3):
     # add borders to avoid cropping problems
-    bordersize = 400
+    bordersize = 800
     frame = cv2.copyMakeBorder(frame, top=bordersize, bottom=bordersize, left=bordersize, right=bordersize, borderType= cv2.BORDER_CONSTANT)
 
     # crop r.o.i
@@ -92,13 +92,13 @@ def cropFace(frame, bounding_box, size=256, ratio=2):
     h, w, channels = roi.shape
 
     # If the cropped img is small or face region mx is small
-    if h != w or w < 120 or mx < 120:
-        print("Skipped in HOG Crop")
+    if h != w or w < 200 or mx < 200:
+        # print("Skipped in HOG Crop")
         return None, None
 
     landmarks = getFaceKeypoints(roi, detector, predictor)
     if landmarks is None:
-        print("Skipped in keypoints")
+        # print("Skipped in keypoints")
         return None, None
 
     landmarks = np.asarray(landmarks, dtype=np.int32)[0].T
@@ -199,8 +199,8 @@ def processVideo(vid_path, selected_frames_path, id):
                     FLAGS.current_frame = FLAGS.current_frame + 1
                     # drawPoints(frame, landmarks)
                     # cv2.imshow('frame', frame)
-                    # if cv2.waitKey(1) & 0xFF == ord('q'):
-                    #     break
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        break
                 id_tracker = id_tracker + 1
             frame_cnt = frame_cnt + 1
         else:
