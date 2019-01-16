@@ -88,7 +88,10 @@ def processVideo(video_path, id):
 
     validation_set = random.sample(range(0, sample_size), int(sample_size * 0.2))
 
+    frame_prev = None
+    shape2D_prev = None
     frame_cnt = 0
+    step_cnt = 0
     while(cap.isOpened()):
         ret, frame = cap.read()
         if ret == True:
@@ -101,17 +104,23 @@ def processVideo(video_path, id):
                 frame, shape2D = cropFace(frame, shape2D)
                 if frame is None:
                     continue
-                fname = str(id) + '_' + str(frame_cnt)
-                if frame_cnt in validation_set:
+                fname = str(id) + '_' + str(step_cnt)
+                if step_cnt in validation_set:
                     fname = os.path.join(FLAGS.validation_dir, fname)
                 else:
                     fname = os.path.join(FLAGS.output_dir, fname)
                
-                # cv2.imwrite(fname + ".png", frame)
-                # np.save(fname + ".npy", shape2D)
+                if frame_prev is not None:
+                    # cv2.imwrite(fname + "_src.png", frame_prev)
+                    # np.save(fname + "_src.npy", shape2D_prev)
+                    # cv2.imwrite(fname + "_trgt.png", frame)
+                    # np.save(fname + "_trgt.npy", shape2D)
+                    step_cnt = step_cnt + 1
+                    drawPoints(frame, shape2D)
+                    cv2.imshow('frame', frame)
 
-                drawPoints(frame, shape2D)
-                cv2.imshow('frame', frame)
+                frame_prev = frame
+                shape2D_prev = shape2D
             frame_cnt = frame_cnt + 1
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
