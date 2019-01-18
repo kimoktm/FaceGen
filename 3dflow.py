@@ -8,6 +8,8 @@ import tensorflow as tf
 
 import cv2
 import dlib
+import glob
+import os
 
 from bfm.morphable_model import MorphabelModel
 from bfm.morphable_model_np import MorphabelModelNP
@@ -283,7 +285,11 @@ def bilinear_sampler(data, v, img_shape=100):
 import scipy.spatial as spatial
 from sklearn.neighbors import KDTree
 
-def spatialNeighbours(uv_coords, samples=100, radius=50, img_size=100):
+
+def sigmoid(x):
+  return 1 / (1 + math.exp(-x))
+
+def spatialNeighbours(uv_coords, samples=6000, radius=60, img_size=1000):
     #control_ids = np.random.random_integers(0, uv_coords.shape[0], samples)
     
     control_ids = []
@@ -314,24 +320,49 @@ def spatialNeighbours(uv_coords, samples=100, radius=50, img_size=100):
     cluster_influence = np.zeros([control_ids.shape[0], uv_coords.shape[0], 3], dtype=np.float32)
 
     for i in range(control_ids.shape[0]):
-        cluster_influence[i, nearest_ind[i]] = 1.0
+        for j in range(len(nearest_ind[i])):
+            dist = np.sum((uv_coords[nearest_ind[i][j]] - uv_coords[control_ids[i]])**2)**(0.5)
+            cluster_influence[i, nearest_ind[i][j]] = 1 - dist / radius
 
     return control_ids, cluster_influence
 
 
-def nearestNeighbours(uv_coords, samples=100):
+
+def nearestNeighbours(uv_coords, samples=3000, k=4):
     control_ids = np.random.random_integers(0, uv_coords.shape[0], samples)
+    #control_ids = np.asarray(range(0, uv_coords.shape[0]))
+
     tree = KDTree(uv_coords)
     nearest_dist, nearest_ind = tree.query(uv_coords[control_ids], k=int(uv_coords.shape[0]/samples))
+    #nearest_dist, nearest_ind = tree.query(uv_coords[control_ids], k=k)
 
     # build weight masks
     cluster_influence = np.zeros([control_ids.shape[0], uv_coords.shape[0], 3], dtype=np.float32)
 
     for i in range(control_ids.shape[0]):
-        cluster_influence[i, nearest_ind[i]] = 1.0
+        mx_dist = np.amax(nearest_dist[i]) + 5
+        for j in range(nearest_ind[i].shape[0]):
+            cluster_influence[i, nearest_ind[i][j]] = 1 - nearest_dist[i][j] / mx_dist
 
     return control_ids, cluster_influence
 
+
+
+def loadRig(uv_coords, path):
+    clusters = []
+    for file in sorted(glob.glob(os.path.join(path, '*.jpg'))):
+        weights = np.asarray(cv2.imread(file), dtype=np.float32) / 255.
+        size = weights.shape[0]
+        cluster_influence = []
+        for uv in uv_coords:
+            w = weights[size - int(uv[1] * size), int(uv[0] * size)]
+            cluster_influence.append(w)
+        clusters.append(cluster_influence)
+
+    # build weight masks
+    cluster_influence = np.asarray(clusters, dtype=np.float32)
+
+    return cluster_influence
 
 
 
@@ -347,18 +378,25 @@ if __name__ == '__main__':
     flowimg_size = 1000
     path         = "../face3dMM/examples/Data/BFM/Out/BFM17Face_raw.mat"
     pth          = '/home/karim/Desktop/'
-    imgs         = [pth + 'face_1.png', pth + 'face_2.png', pth + 'face_3.png', pth + 'face_4.png', pth + 'face_5.png', pth + 'face_6.png', pth + 'face_7.png',  pth + 'face_8.png']
+    imgs         = [pth + 'face_6.png', pth + 'face_2.png', pth + 'face_3.png', pth + 'face_4.png', pth + 'face_5.png', pth + 'face_6.png', pth + 'face_7.png',  pth + 'face_8.png']
     
-    pth          = '/home/karim/Desktop/data/'
-    imgs         = [pth + 'img_1.png', pth + 'img_2.png', pth + 'img_3.png', pth + 'img_4.png', pth + 'img_5.png', pth + 'img_6.png', pth + 'img_7.png',  pth + 'img_8.png']
+    #pth          = '/home/karim/Desktop/data/'
+    #imgs         = [pth + 'img_1.png', pth + 'img_2.png', pth + 'img_3.png', pth + 'img_4.png', pth + 'img_5.png', pth + 'img_6.png', pth + 'img_7.png',  pth + 'img_8.png']
     imgs         = imgs[:BATCH_SIZE]
 
 
     bfm = MorphabelModel(path)
     uv_coords = load_uv_coords('/home/karim/Downloads/FaceUved.obj')
-    uv_coords = uv_coords * flowimg_size
-    control_ids, cluster_influence = spatialNeighbours(uv_coords, img_size=flowimg_size)
+    
+    # spatial neighbours
+    control_ids, cluster_influence = spatialNeighbours(uv_coords * flowimg_size, img_size=flowimg_size)
 
+    #control_ids, cluster_influence = nearestNeighbours(uv_coords * flowimg_size)
+    #print(cluster_influence.shape)
+
+    # load rig
+    #cluster_influence = loadRig(uv_coords, '/home/karim/Desktop/data/rig')
+    #print(cluster_influence.shape)
 
     ARGS_landmarks = bfm.landmarks
     TRGT_landmarks = bfm.landmarks_ids
@@ -381,14 +419,13 @@ if __name__ == '__main__':
     sh_coff[:, 0, 2]  = 1.0
     sh_coff           = tf.Variable(sh_coff)
     #flow_field        = tf.Variable(tf.zeros([BATCH_SIZE, bfm.nver, 3]))
-    flow_field        = tf.Variable(tf.zeros([BATCH_SIZE, len(control_ids), 3]))
+    flow_field        = tf.Variable(tf.zeros([BATCH_SIZE, cluster_influence.shape[0], 3]))
 
     flow_control = []
     for b in range(BATCH_SIZE):
         fx = []
         for c in range(3):
-            x = tf.expand_dims(flow_field[b, :, c], 1) * cluster_influence[:, :, c]
-            fx.append(tf.reduce_sum(x, 0))
+            fx.append(tf.reduce_sum(tf.expand_dims(flow_field[b, :, c], 1) * cluster_influence[:, :, c], 0))
         fx = tf.stack(fx, axis=1)
         flow_control.append(fx)
     flow_control = tf.stack(flow_control, axis=0)
@@ -434,12 +471,10 @@ if __name__ == '__main__':
 
     # Flow field optimizer
    # flow_loss = 1.1 * pixel_loss + 0*1e-3 * tf.reduce_mean(flow_field) + 1e4 * field_regularization
-    flow_loss = landmarks_loss
+    flow_loss =1.1 * pixel_loss + 1e-4 * landmarks_loss + 4e1 * tf.reduce_mean(tf.square(flow_field))
 
-    flow_optimizer = tf.train.AdamOptimizer(0.1)
-    #flow_grads_and_vars = flow_optimizer.compute_gradients(flow_loss, [identity, albedo, expressions, pose, sh_coff, flow_field])
-
-    flow_grads_and_vars = flow_optimizer.compute_gradients(flow_loss, [flow_field])
+    flow_optimizer = tf.train.AdamOptimizer(0.0001)
+    flow_grads_and_vars = flow_optimizer.compute_gradients(flow_loss, [identity, albedo, expressions, pose, sh_coff, flow_field])
     flow_opt_func = flow_optimizer.apply_gradients(flow_grads_and_vars, global_step=global_step)
 
 
@@ -466,11 +501,11 @@ if __name__ == '__main__':
 
         # Flow field fitting
         print("Flow field fitting")
-        for i in tqdm(range(400)):
+        for i in tqdm(range(1)):
             lss, _ = sess.run([flow_loss, flow_opt_func])
             id_params, ep_params, alb_params, flow_params = sess.run([identity, expressions, colr, flow_control])
             prog_image, prog_lnd, trgt_image, trgt_lnd = sess.run([render, pvs, trgt_render, pvt])
-            showImages(prog_image, trgt_image, prog_lnd, trgt_lnd, image_height, True)
+            showImages(prog_image, trgt_image, prog_lnd, trgt_lnd, image_height, False)
 
 
     # Save Obj file

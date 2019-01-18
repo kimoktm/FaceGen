@@ -39,7 +39,7 @@ def normalizeModel(model):
     # FACTOR = 100
     FACTOR = 20
     SHAPE_SCALE = 1e-2 / 5.25 * FACTOR
-    EXP_SCALE   = 1e-2 / 3.0 * FACTOR
+    EXP_SCALE   = 1e-2 / 3.0 * FACTOR * 2
     TEX_SCALE   = 1e-1 / 1.45 * 1.4 * FACTOR
     MESH_SCALE  = 8e-03
 

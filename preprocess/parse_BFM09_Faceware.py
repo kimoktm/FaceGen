@@ -27,10 +27,22 @@ def normalizeModel(model):
     scale factors to normalize stds - emperically estimated
     """
 
-    SHAPE_SCALE = 0.35
-    TEX_SCALE   = 0.35
-    EXP_SCALE   = 1e4 * 7
+    FACTOR = 3e1
+    SHAPE_SCALE = 0.35 * FACTOR
+    EXP_SCALE   = 1e4 * 7 * FACTOR
+    TEX_SCALE   = 0.35 * FACTOR / 3
     MESH_SCALE  = 8e-06
+
+    FACTOR = 4
+    SHAPE_SCALE = 1 * FACTOR 
+    EXP_SCALE   = 1e4 * 6 * FACTOR 
+    TEX_SCALE   = 1 * FACTOR
+    MESH_SCALE  = 8e-06
+
+    print(np.mean(model['shapeEV']))
+    print(np.mean(model['expEV']))
+    print(np.mean(model['texEV']))
+
 
     model['shapeEV'] = model['shapeEV'] * SHAPE_SCALE
     model['texEV']   = model['texEV'] * TEX_SCALE
@@ -38,6 +50,14 @@ def normalizeModel(model):
     model['shapeMU'] = model['shapeMU'] * MESH_SCALE
     model['shapePC'] = model['shapePC'] * MESH_SCALE
     model['expPC']   = model['expPC'] * MESH_SCALE
+
+    print("")
+    print(np.mean(model['shapeEV']))
+    print(np.mean(model['expEV']))
+    print(np.mean(model['texEV']))
+    print(np.mean(model['shapePC']))
+    print(np.mean(model['expPC']))
+    print(np.mean(model['texPC']))
 
     return model
 
@@ -71,7 +91,7 @@ def parseBFM2009(fmodel, fexpressions, fblink, mask):
         # append blinking expressions
         model['expPC']   = np.c_[blinking['right_eye'], model['expPC']]
         model['expPC']   = np.c_[blinking['left_eye'], model['expPC']]
-        model['expEV']   = np.r_[[2.2, 2.2], model['expEV'][:, 0]][:, np.newaxis]
+        model['expEV']   = np.r_[[1.2, 1.2], model['expEV'][:, 0]][:, np.newaxis]
 
 
     if mask:
