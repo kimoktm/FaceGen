@@ -6,34 +6,26 @@ import random
 import cv2
 import dlib
 import numpy as np
+import pandas as pd
+
 from tqdm import tqdm
 
 # Basic model parameters as external flags.
 FLAGS = None
-predictor_path = "/home/karim/Documents/Development/FacialCapture/Facial-Capture/models/shape_predictor_68_face_landmarks.dat"
-detector = dlib.get_frontal_face_detector()
-predictor = dlib.shape_predictor(predictor_path)
 
 
-def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=320):
-    imgScale = 1
-    scaledImg = img
-    if max(img.shape) > maxImgSizeForDetection:
-        imgScale = maxImgSizeForDetection / float(max(img.shape))
-        scaledImg = cv2.resize(img, (int(img.shape[1] * imgScale), int(img.shape[0] * imgScale)))
+def getFaceKeypoints(frame_cnt, openFace_landmarks):
+    shapes2D = []
+    frame = openFace_landmarks[openFace_landmarks['frame'] == frame_cnt]
 
-    dets = detector(scaledImg, 1)
-
-    if len(dets) == 0:
+    # skip if low confidence
+    if frame['confidence'].values[0] < 0.95:
         return None
 
-    shapes2D = []
-    for det in dets:
-        faceRectangle = dlib.rectangle(int(det.left() / imgScale), int(det.top() / imgScale), int(det.right() / imgScale), int(det.bottom() / imgScale))
-        dlibShape = predictor(img, faceRectangle)
-        shape2D = np.array([[p.x, p.y] for p in dlibShape.parts()])
-        shape2D = shape2D.T
-        shapes2D.append(shape2D)
+    for i in range(0, 68):
+        x = frame[' x_' + str(i)].values[0]
+        y = frame[' y_' + str(i)].values[0]
+        shapes2D.append([x, y])
 
     return shapes2D
 
@@ -77,55 +69,53 @@ def drawPoints(img, points, color=(0, 255, 0)):
 
 
 def processVideo(video_path, id):
+    landmarks_path = os.path.join(FLAGS.openFace_landmarks, str(id) + '.csv')
+    landmarks = pd.read_csv(landmarks_path)
+
+
     cap = cv2.VideoCapture(video_path)
     frames_num = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     sample_size = FLAGS.num_frames
 
-    # # Random samples
-    # if sample_size < frames_num:
-    #     samples = random.sample(range(0, frames_num), sample_size)
-    # else:
-    #     print('Samples are more than number of frames')
-    #     return
-
     # Sequential samples
-    if sample_size < frames_num:
-        samples = range(0, sample_size)
-    else:
+    if sample_size > frames_num:
         print('Samples are more than number of frames')
         return
-
-    # validation_set = random.sample(range(0, sample_size), int(sample_size * 0.2))
 
     frame_cnt = 0
     while(cap.isOpened()):
         ret, frame = cap.read()
         if ret == True:
-            if frame_cnt in samples:
-                shape2D = getFaceKeypoints(frame, detector, predictor)
+            if frame_cnt < samples:
+                shape2D = getFaceKeypoints(frame_cnt, landmarks)
+
                 if shape2D is None:
                     continue
 
-                shape2D = np.asarray(shape2D)[0].T
+                shape2D = np.asarray(shape2D)
                 frame, shape2D = cropFace(frame, shape2D)
                 if frame is None:
                     continue
-                fname = str(id) + '_' + str(frame_cnt)
-                # if frame_cnt in validation_set:
-                #     fname = os.path.join(FLAGS.validation_dir, fname)
-                # else:
-                #     fname = os.path.join(FLAGS.output_dir, fname)
 
+                fname = str(id) + '_' + str(frame_cnt)
                 fname = os.path.join(FLAGS.output_dir, fname)
                 cv2.imwrite(fname + ".jpg", frame)
                 np.save(fname + ".npy", shape2D)
                 # drawPoints(frame, shape2D)
                 # cv2.imshow('frame', frame)
-            frame_cnt = frame_cnt + 1
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+                frame_cnt = frame_cnt + 1
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
         else:
             break
+
+    # delete sequence if frame_cnt is too low
+    if frame_cnt < 40:
+        print('Deleting sequence ' + str(id))
+        try:
+            os.remove(os.path.join(FLAGS.output_dir, str(id) + '*'))
+        except:
+            print('Failed to delete sequence ' + str(id))
 
 
 def main():
@@ -141,6 +131,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description = 'Extract Keyframes for initalization')
     parser.add_argument('--videos', help = 'Path to input videos')
+    parser.add_argument('--openFace_landmarks', help = 'Path to openface landmarks')
     parser.add_argument('--num_frames', help = 'Number of key frames to extract', type = int, default = 200)
     parser.add_argument('--output_dir', help = 'Output directory', default='.')
     parser.add_argument('--validation_dir', help = 'Output directory', default='.')

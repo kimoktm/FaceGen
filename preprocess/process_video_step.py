@@ -34,7 +34,7 @@ def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=320):
     return shapes2D
 
 
-def cropFace(frame, landmarks, size=256, ratio=1.8):
+def cropFace(frame, landmarks, size=256, ratio=1.5):
     # add borders to avoid cropping problems
     bordersize=300
     frame = cv2.copyMakeBorder(frame, top=bordersize, bottom=bordersize, left=bordersize, right=bordersize, borderType= cv2.BORDER_CONSTANT)
@@ -46,14 +46,14 @@ def cropFace(frame, landmarks, size=256, ratio=1.8):
 
     mx = (w if w > h else h)
     x = int(x - float(ratio * w - w) / 2)
-    y = int(y - float(ratio * h - h) / 2)
+    y = int((y - float(ratio * h - h) / 2) - float(ratio * h * 0.08))
     mx = int(mx * ratio)
 
     roi = frame[y:y + mx , x:x + mx]
     h, w, channels = roi.shape
 
     # If the cropped img is small or face region mx is small
-    if h != w or w < 100 or mx < 100:
+    if h != w or w < 140 or mx < 140:
         return None, None
 
     landmarks[:, 0] = landmarks[:, 0] - x

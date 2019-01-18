@@ -4,7 +4,6 @@ import os
 import glob
 import argparse
 import random
-import ffmpeg
 
 import cv2
 import dlib
@@ -44,6 +43,7 @@ def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=320):
 def cropLandmarks(frame, size=256, ratio=1.5):
     landmarks = getFaceKeypoints(frame, detector, predictor)
     if landmarks is None:
+        # print("Skipped in landmarks detection")
         return None, None
     landmarks = np.asarray(landmarks, dtype=np.int32)[0].T
 
@@ -58,14 +58,14 @@ def cropLandmarks(frame, size=256, ratio=1.5):
 
     mx = (w if w > h else h)
     x = int(x - float(ratio * w - w) / 2)
-    y = int(y - float(ratio * h - h) / 2)
+    y = int((y - float(ratio * h - h) / 2) - float(ratio * h * 0.08))
     mx = int(mx * ratio)
 
     roi = frame[y:y + mx , x:x + mx]
     h, w, channels = roi.shape
 
     # If the cropped img is small or face region mx is small
-    if h != w or w < 180 or mx < 180:
+    if h != w or w < 160 or mx < 160:
         # print("Skipped in Key Crop")
         return None, None
 
@@ -78,9 +78,9 @@ def cropLandmarks(frame, size=256, ratio=1.5):
     return roi, landmarks
 
 
-def cropFace(frame, bounding_box, ratio=3.6):
+def cropFace(frame, bounding_box, ratio=2.6):
     # add borders to avoid cropping problems
-    bordersize = 800
+    bordersize = 900
     frame = cv2.copyMakeBorder(frame, top=bordersize, bottom=bordersize, left=bordersize, right=bordersize, borderType= cv2.BORDER_CONSTANT)
 
     # crop r.o.i
@@ -98,8 +98,8 @@ def cropFace(frame, bounding_box, ratio=3.6):
     h, w, channels = roi.shape
 
     # If the cropped img is small or face region mx is small
-    if h != w or w < 200 or mx < 200:
-        # print("Skipped in HOG Crop")
+    if h != w or w < 128 or mx < 128:
+        print("Skipped in HOG Crop")
         return None
 
     return roi
@@ -120,10 +120,10 @@ def prcoessTxt(file_path):
     for line in file:
         nums = line.split(" ")
         frame_id = int(nums[0])
-        x = int(nums[1])
-        y = int(nums[2])
-        w = int(nums[3])
-        h = int(nums[4])
+        x = float(nums[1])
+        y = float(nums[2])
+        w = float(nums[3])
+        h = float(nums[4])
         selected_frames.append(frame_id)
         bounding_rects.append([x, y, w, h])
 
@@ -159,7 +159,7 @@ def processSelectedFrames(path):
     bounding_rects = b_rects
 
     selected_frames = np.asarray(selected_frames, dtype=np.int32)
-    bounding_rects = np.asarray(bounding_rects, dtype=np.int32)
+    bounding_rects = np.asarray(bounding_rects, dtype=float)
 
     return selected_frames, bounding_rects
 
@@ -168,7 +168,7 @@ def processVideo(vid_path, selected_frames_path, id):
     FLAGS.processed_videos = FLAGS.processed_videos + 1
 
     # create dir
-    output_path = os.path.join(FLAGS.output_dir, os.path.relpath(selected_frames_path, FLAGS.dataset))
+    output_path = os.path.join(FLAGS.frames_path, os.path.relpath(selected_frames_path, FLAGS.dataset))
     if not os.path.isdir(output_path):
         os.makedirs(output_path)
 
@@ -181,34 +181,41 @@ def processVideo(vid_path, selected_frames_path, id):
     else:
         return
 
+    # decrease frame-rate to 24
+    fps = round(cap.get(cv2.CAP_PROP_FPS))
+    fps_skip = round(fps / (fps - 24))
+
     frame_cnt = 0
     id_tracker = 0
-    # FLAGS.current_frame = 0
+    low_fps_cnt = 0
     while(cap.isOpened()):
         ret, frame = cap.read()
-
         if ret:
-            scale = int(frame.shape[0] / 360)
-            if id_tracker < len(selected_frames) and frame_cnt == selected_frames[id_tracker]:
-                bounding_rects[id_tracker] = bounding_rects[id_tracker] * scale
-                frame = cropFace(frame, bounding_rects[id_tracker])
+            frame_cnt = frame_cnt + 1
+            if frame_cnt % fps_skip == 0:
+                continue
+
+            scale = float(frame.shape[0] / 360.0)
+            if id_tracker < len(selected_frames) and low_fps_cnt == selected_frames[id_tracker]:
+                frame = cropFace(frame, bounding_rects[id_tracker] * scale)
                 frame, landmarks = cropLandmarks(frame)
                 if frame is not None:
-                    fname = str(id) + '_' + str(frame_cnt)
-                    cv2.imwrite(os.path.join(output_path, fname + ".png"), frame)
+                    fname = str(id) + '_' + str(low_fps_cnt)
+                    cv2.imwrite(os.path.join(output_path, fname + ".jpg"), frame)
                     np.save(os.path.join(output_path, fname + ".npy"), landmarks)                    
-                    # FLAGS.current_frame = FLAGS.current_frame + 1
                     # drawPoints(frame, landmarks)
                     # cv2.imshow('frame', frame)
                     # if cv2.waitKey(1) & 0xFF == ord('q'):
                     #     break
                 id_tracker = id_tracker + 1
-            frame_cnt = frame_cnt + 1
+            low_fps_cnt = low_fps_cnt + 1
         else:
             break
 
 
 def processURL(path, id):
+    vid_path = os.path.join(FLAGS.videos_path, os.path.relpath(path, FLAGS.dataset))
+    vid_path = os.path.join(vid_path, str(id) + '.mp4')
 
     class MyLogger(object):
         def debug(self, msg):
@@ -218,23 +225,17 @@ def processURL(path, id):
         def error(self, msg):
             pass
 
+
     ydl_opts = {
         'format': '(mp4)[height>=480][height<=?1080]',
-        'outtmpl': str(id) + '.mp4',
+        'outtmpl': vid_path,
         'logger': MyLogger()
     }
 
     try:
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             ydl.download(['http://youtube.com/watch?v=' + str(id)])
-            stream = ffmpeg.input(str(id) + '.mp4')
-            stream = ffmpeg.filter(stream, 'fps', fps=24, round='up')
-            stream = ffmpeg.output(stream, str(id) + '_24.mp4').global_args('-loglevel', 'info').global_args('-threads', '0').global_args('-y')
-            ffmpeg.run(stream)
-
-            os.remove(str(id) + '.mp4')
-            processVideo(str(id) + '_24.mp4', path, id)
-            exit()
+            processVideo(vid_path, path, id)
     except:
         # print("Resolution too low, skipping")
         return
@@ -252,9 +253,7 @@ def main():
     identites = [str(dI) for dI in os.listdir(FLAGS.dataset) if os.path.isdir(os.path.join(FLAGS.dataset,dI))]
     identites.sort()
 
-    identites[:1]
     FLAGS.processed_videos = 0
-
     print("Process Identites set:")
     for i in tqdm(range(len(identites))):
         path = os.path.join(FLAGS.dataset, identites[i])
@@ -270,9 +269,15 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', help = 'Path to 300VW videos', required=True)
     parser.add_argument('--output_dir', help = 'Output directory')
     parser.add_argument('--validation_dir', help = 'Output directory')
-    parser.add_argument('--imgs_per_video', help = 'Images per video', default=100)
+    parser.add_argument('--imgs_per_video', help = 'Images per video', default=200)
     parser.add_argument('--videos_num', help = 'Number of videos', default=101)
 
     FLAGS, unparsed = parser.parse_known_args()
+    FLAGS.videos_path = os.path.join(FLAGS.output_dir, 'videos')
+    FLAGS.frames_path = os.path.join(FLAGS.output_dir, 'frames')
+    if not os.path.isdir(FLAGS.videos_path):
+        os.makedirs(FLAGS.videos_path)
+    if not os.path.isdir(FLAGS.frames_path):
+        os.makedirs(FLAGS.frames_path)
 
     main()
