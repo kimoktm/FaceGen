@@ -61,7 +61,7 @@ def loadImg(path, masked_landmarks, image_width, image_height):
     b,g,r = cv2.split(img)
     img = cv2.merge([r,g,b])
     img = cv2.resize(img, (image_width, image_height))
-    #img = cv2.GaussianBlur(img, (3, 3), 0)
+    img = cv2.GaussianBlur(img, (3, 3), 0)
 
     # extract landmarks
     predictor_path = "/home/karim/Documents/Development/FacialCapture/Facial-Capture/models/shape_predictor_68_face_landmarks.dat"
@@ -347,6 +347,38 @@ def nearestNeighbours(uv_coords, samples=3000, k=4):
     return control_ids, cluster_influence
 
 
+def nearestNeighboursIds(uv_coords, k=8):
+    tree = KDTree(uv_coords)
+    nearest_dist, nearest_ind = tree.query(uv_coords, k=k)
+
+    return nearest_ind
+
+def nearestNeighboursIds3D(vertices, k=8):
+    tree = KDTree(vertices)
+    nearest_dist, nearest_ind = tree.query(vertices, k=k)
+
+    return nearest_ind
+
+
+def getMirrorIds(uv_coords, img_size = 1024):
+    blank_image = np.zeros((img_size,img_size,3), np.uint8)
+
+    left_ids = []
+    left_face = []
+    for uv_id in range(len(uv_coords)):
+        x, y = uv_coords[uv_id] * img_size
+        if x < int(img_size / 2) + 10:
+            mirror_x = img_size - x
+            left_face.append([mirror_x, y])
+            left_ids.append(uv_id)
+            # blank_image[img_size-int(y), int(mirror_x)] = (255, 255, 255)
+    # cv2.imwrite('/home/karim/Desktop/clusters.png', blank_image)
+
+    tree = KDTree(uv_coords * img_size)
+    _, right_ids = tree.query(left_face, k=1)
+
+    return left_ids, right_ids[:, 0]
+
 
 def loadRig(uv_coords, path):
     clusters = []
@@ -371,14 +403,14 @@ if __name__ == '__main__':
     tf.set_random_seed(125)
 
 
-    BATCH_SIZE   = 1
+    BATCH_SIZE   = 3
     perspective  = False
     image_height = 256
     image_width  = 256
     flowimg_size = 1000
     path         = "../face3dMM/examples/Data/BFM/Out/BFM17Face_raw.mat"
     pth          = '/home/karim/Desktop/'
-    imgs         = [pth + 'face_6.png', pth + 'face_2.png', pth + 'face_3.png', pth + 'face_4.png', pth + 'face_5.png', pth + 'face_6.png', pth + 'face_7.png',  pth + 'face_8.png']
+    imgs         = [pth + 'x_1.png', pth + 'x_2.png', pth + 'x_3.png', pth + 'face_6.png', pth + 'face_2.png', pth + 'face_3.png', pth + 'face_4.png', pth + 'face_5.png', pth + 'face_6.png', pth + 'face_7.png',  pth + 'face_8.png']
     
     #pth          = '/home/karim/Desktop/data/'
     #imgs         = [pth + 'img_1.png', pth + 'img_2.png', pth + 'img_3.png', pth + 'img_4.png', pth + 'img_5.png', pth + 'img_6.png', pth + 'img_7.png',  pth + 'img_8.png']
@@ -418,19 +450,22 @@ if __name__ == '__main__':
     sh_coff[:, 0, 1]  = 1.0
     sh_coff[:, 0, 2]  = 1.0
     sh_coff           = tf.Variable(sh_coff)
-    #flow_field        = tf.Variable(tf.zeros([BATCH_SIZE, bfm.nver, 3]))
-    flow_field        = tf.Variable(tf.zeros([BATCH_SIZE, cluster_influence.shape[0], 3]))
+    flow_field        = tf.Variable(tf.zeros([BATCH_SIZE, bfm.nver, 3]))
+    normal_field      = tf.Variable(tf.zeros([BATCH_SIZE, bfm.nver, 3]))
 
-    flow_control = []
-    for b in range(BATCH_SIZE):
-        fx = []
-        for c in range(3):
-            fx.append(tf.reduce_sum(tf.expand_dims(flow_field[b, :, c], 1) * cluster_influence[:, :, c], 0))
-        fx = tf.stack(fx, axis=1)
-        flow_control.append(fx)
-    flow_control = tf.stack(flow_control, axis=0)
 
-    render, pvs, colr = fr.renderFaces(identity, expressions, pose, albedo, sh_coff, flow_control, bfm, perspective, image_width, image_height)
+    # # control field
+    # flow_field        = tf.Variable(tf.zeros([BATCH_SIZE, cluster_influence.shape[0], 3]))
+    # flow_control = []
+    # for b in range(BATCH_SIZE):
+    #     fx = []
+    #     for c in range(3):
+    #         fx.append(tf.reduce_sum(tf.expand_dims(flow_field[b, :, c], 1) * cluster_influence[:, :, c], 0))
+    #     fx = tf.stack(fx, axis=1)
+    #     flow_control.append(fx)
+    # flow_control = tf.stack(flow_control, axis=0)
+
+    render, pvs, colr = fr.renderFaces(identity, expressions, pose, albedo, sh_coff, flow_field + normal_field, bfm, perspective, image_width, image_height)
 
 
     # Load real-image
@@ -470,12 +505,55 @@ if __name__ == '__main__':
 
 
     # Flow field optimizer
-   # flow_loss = 1.1 * pixel_loss + 0*1e-3 * tf.reduce_mean(flow_field) + 1e4 * field_regularization
-    flow_loss =1.1 * pixel_loss + 1e-4 * landmarks_loss + 4e1 * tf.reduce_mean(tf.square(flow_field))
 
-    flow_optimizer = tf.train.AdamOptimizer(0.0001)
+    # laplacian regularizer
+    Neighbours_size = 8
+    bfmNp = MorphabelModelNP(path)
+    base_ver = bfmNp.generate_vertices(bfmNp.get_shape_para('zero'), bfmNp.get_exp_para('zero'))
+    neighbours_ids = nearestNeighboursIds3D(base_ver, Neighbours_size)
+    # neighbours_ids = nearestNeighboursIds(uv_coords * flowimg_size, Neighbours_size)
+    neighbours_ids = tf.reshape(neighbours_ids, [neighbours_ids.shape[0] * neighbours_ids.shape[1]])
+    neighbours_flows = tf.gather(flow_field, neighbours_ids, axis=1)
+
+    fids = range(0, bfm.nver)
+    fids = np.repeat(fids, Neighbours_size)
+    repeated_flow = tf.gather(flow_field, fids, axis=1)
+    neighbours_diff = repeated_flow - neighbours_flows
+    neighbours_diff = tf.reshape(neighbours_diff, [-1, bfm.nver, Neighbours_size, 3])
+    neighbours_diff = tf.square(tf.reduce_sum(neighbours_diff, axis=2))
+    smoothness_term = tf.reduce_mean(neighbours_diff)
+
+
+    # mirror term
+    left_face_ids, right_face_ids = getMirrorIds(uv_coords, flowimg_size)
+    left_face   = tf.gather(flow_field, left_face_ids, axis=1)
+    right_face  = tf.gather(flow_field, right_face_ids, axis=1)
+    mirror_term = tf.reduce_mean(tf.square(left_face - right_face))
+
+    flow_loss = 1.1 * pixel_loss + 1e-5 * landmarks_loss + 1e3 * smoothness_term + 7e4 * mirror_term
+    # flow_loss =1.1 * pixel_loss + 1e-4 * landmarks_loss + 4e1 * tf.reduce_mean(tf.square(flow_field))
+
+    flow_optimizer = tf.train.AdamOptimizer(0.001)
     flow_grads_and_vars = flow_optimizer.compute_gradients(flow_loss, [identity, albedo, expressions, pose, sh_coff, flow_field])
     flow_opt_func = flow_optimizer.apply_gradients(flow_grads_and_vars, global_step=global_step)
+
+
+
+    neighbours_normals = tf.gather(normal_field, neighbours_ids, axis=1)
+
+    fids = range(0, bfm.nver)
+    fids = np.repeat(fids, Neighbours_size)
+    repeated_normal = tf.gather(normal_field, fids, axis=1)
+    neighbours_diff = repeated_normal - neighbours_normals
+    neighbours_diff = tf.reshape(neighbours_diff, [-1, bfm.nver, Neighbours_size, 3])
+    neighbours_diff = tf.square(tf.reduce_sum(neighbours_diff, axis=2))
+    normal_smoothness_term = tf.reduce_mean(neighbours_diff)
+
+    normal_loss = 1.1 * pixel_loss + 9e3 * tf.reduce_mean(tf.square(normal_field)) + 4 * normal_smoothness_term
+    normal_optimizer = tf.train.AdamOptimizer(0.001)
+    normal_grads_and_vars = normal_optimizer.compute_gradients(normal_loss, [normal_field])
+    normal_opt_func = normal_optimizer.apply_gradients(normal_grads_and_vars, global_step=global_step)
+
 
 
     with tf.Session() as sess:
@@ -491,7 +569,7 @@ if __name__ == '__main__':
 
         # Global fitting
         print("Global fitting")
-        for i in tqdm(range(200)):
+        for i in tqdm(range(300)):
             lss, _, pl, ll, rl = sess.run([loss, opt_func, pixel_loss, landmarks_loss, reg_loss])
             grds = sess.run([grads_and_vars])
             #print(grds[0])
@@ -501,11 +579,21 @@ if __name__ == '__main__':
 
         # Flow field fitting
         print("Flow field fitting")
-        for i in tqdm(range(1)):
+        for i in tqdm(range(400)):
             lss, _ = sess.run([flow_loss, flow_opt_func])
-            id_params, ep_params, alb_params, flow_params = sess.run([identity, expressions, colr, flow_control])
+            id_params, ep_params, alb_params, flow_params = sess.run([identity, expressions, colr, flow_field])
             prog_image, prog_lnd, trgt_image, trgt_lnd = sess.run([render, pvs, trgt_render, pvt])
             showImages(prog_image, trgt_image, prog_lnd, trgt_lnd, image_height, False)
+
+
+        # # Shape from shading fitting
+        # print("Normal field fitting")
+        # for i in tqdm(range(200)):
+        #     lss, _ = sess.run([normal_loss, normal_opt_func])
+        #     normals = sess.run(normal_field)
+        #     prog_image, prog_lnd, trgt_image, trgt_lnd = sess.run([render, pvs, trgt_render, pvt])
+        #     showImages(prog_image, trgt_image, prog_lnd, trgt_lnd, image_height, False)
+
 
 
     # Save Obj file

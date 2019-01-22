@@ -130,11 +130,15 @@ def processVideo(video_path, id):
 
 def main():
     videos = sorted(glob.glob(os.path.join(FLAGS.videos, '*.mp4')))
-    # videos = videos[:3]
 
+    video_names = []
     for vid_path in tqdm(videos):
         vid_name = os.path.splitext(os.path.basename(vid_path))[0]
         processVideo(vid_path, vid_name)
+        video_names.append(vid_name)
+
+    video_names = np.asarray(video_names)
+    np.savetxt(os.path.join(FLAGS.output_dir, '0_ids.txt'), video_names, fmt='%s')
 
 
 if __name__ == '__main__':

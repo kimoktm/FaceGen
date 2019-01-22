@@ -162,7 +162,7 @@ if __name__ == '__main__':
     tf.reset_default_graph()
     tf.set_random_seed(125)
 
-    BATCH_SIZE   = 8
+    BATCH_SIZE   = 3
     perspective  = False
     image_height = 256
     image_width  = 256
@@ -172,7 +172,7 @@ if __name__ == '__main__':
     imgs         = [pth + 'face_1.png', pth + 'face_2.png', pth + 'face_3.png', pth + 'face_4.png', pth + 'face_5.png', pth + 'face_6.png', pth + 'face_7.png',  pth + 'face_8.png']
     
     pth          = '/home/karim/Desktop/data/'
-    imgs         = [pth + 'img_1.png', pth + 'img_2.png', pth + 'img_3.png', pth + 'img_4.png', pth + 'img_5.png', pth + 'img_6.png', pth + 'img_7.png',  pth + 'img_8.png']
+    imgs         = [pth + 'a.png', pth + 'b.png', pth + 'c.png', pth + 'img_4.png', pth + 'img_5.png', pth + 'img_6.png', pth + 'img_7.png',  pth + 'img_8.png']
     #imgs         = [pth + 'test_1.png', pth + 'test_2.png', pth + 'img_3.png', pth + 'img_4.png', pth + 'img_5.png', pth + 'img_6.png', pth + 'img_7.png',  pth + 'img_8.png']
     imgs         = imgs[:BATCH_SIZE]
 
@@ -184,10 +184,10 @@ if __name__ == '__main__':
     landmarks_weights = np.ones([68, 1], dtype=np.float32)
     landmarks_weights[:6]    = 0.4 # left cheeck
     landmarks_weights[10:16] = 0.4 # right cheeck
-    landmarks_weights[7:9]   = 0.1 # bottom chin
-    landmarks_weights[17:26] = 0.8 # eyebrows
-    landmarks_weights[36:47] = 2.2 # eyes
-    landmarks_weights[48:67] = 8.2 # mouth
+    landmarks_weights[7:9]   = 1.0 # bottom chin
+    landmarks_weights[17:26] = 1.2 # eyebrows
+    landmarks_weights[36:47] = 8.0 # eyes
+    landmarks_weights[48:67] = 8.0 # mouth
     landmarks_weights = landmarks_weights[TRGT_landmarks]
 
 

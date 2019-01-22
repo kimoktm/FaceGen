@@ -14,12 +14,12 @@ from tqdm import tqdm
 FLAGS = None
 
 
-def getFaceKeypoints(frame_cnt, openFace_landmarks):
+def getFaceKeypoints(samples_cnt, openFace_landmarks):
     shapes2D = []
-    frame = openFace_landmarks[openFace_landmarks['frame'] == frame_cnt]
+    frame = openFace_landmarks[openFace_landmarks['frame'] == samples_cnt]
 
     # skip if low confidence
-    if frame['confidence'].values[0] < 0.95:
+    if frame[' confidence'].values[0] < 0.93:
         return None
 
     for i in range(0, 68):
@@ -32,7 +32,7 @@ def getFaceKeypoints(frame_cnt, openFace_landmarks):
 
 def cropFace(frame, landmarks, size=256, ratio=1.5):
     # add borders to avoid cropping problems
-    bordersize=300
+    bordersize=400
     frame = cv2.copyMakeBorder(frame, top=bordersize, bottom=bordersize, left=bordersize, right=bordersize, borderType= cv2.BORDER_CONSTANT)
     landmarks = landmarks + bordersize
 
@@ -50,7 +50,7 @@ def cropFace(frame, landmarks, size=256, ratio=1.5):
 
 
     # If the cropped img is small or face region mx is small
-    if h != w or w < 150 or mx < 150:
+    if h != w or w < 140 or mx < 140:
         # print('Face too small, skipped')
         return None, None
 
@@ -83,11 +83,12 @@ def processVideo(video_path, id):
         return
 
     frame_cnt = 0
+    samples_cnt = 0
     while(cap.isOpened()):
         ret, frame = cap.read()
         if ret == True:
-            if frame_cnt < samples:
-                shape2D = getFaceKeypoints(frame_cnt, landmarks)
+            if samples_cnt < sample_size:
+                shape2D = getFaceKeypoints(frame_cnt + 1, landmarks)
 
                 if shape2D is None:
                     continue
@@ -101,30 +102,34 @@ def processVideo(video_path, id):
                 fname = os.path.join(FLAGS.output_dir, fname)
                 cv2.imwrite(fname + ".jpg", frame)
                 np.save(fname + ".npy", shape2D)
-                # drawPoints(frame, shape2D)
-                # cv2.imshow('frame', frame)
-                frame_cnt = frame_cnt + 1
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
+                samples_cnt = samples_cnt + 1
+            frame_cnt = frame_cnt + 1
         else:
             break
 
-    # delete sequence if frame_cnt is too low
-    if frame_cnt < 40:
-        print('Deleting sequence ' + str(id))
+
+    print('Sequence ' + str(id) + ', good frames: ' + str(samples_cnt))
+
+    # delete sequence if samples_cnt is too low
+    if samples_cnt < 100:
+        print('Deleting sequence ' + str(id) + ', good frames: ' + str(samples_cnt))
         try:
-            os.remove(os.path.join(FLAGS.output_dir, str(id) + '*'))
+            map(os.remove, glob.glob(os.path.join(FLAGS.output_dir, str(id) + '*')))
         except:
             print('Failed to delete sequence ' + str(id))
 
 
 def main():
     videos = sorted(glob.glob(os.path.join(FLAGS.videos, '*.mp4')))
-    # videos = videos[:3]
 
-    for vid_path in tqdm(videos):
+    video_names = []
+    for vid_path in (videos):
         vid_name = os.path.splitext(os.path.basename(vid_path))[0]
         processVideo(vid_path, vid_name)
+        video_names.append(vid_name)
+    
+    video_names = np.asarray(video_names)
+    np.savetxt(os.path.join(FLAGS.output_dir, '0_ids.txt'), video_names, fmt='%s')
 
 
 if __name__ == '__main__':
