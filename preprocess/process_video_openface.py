@@ -12,14 +12,18 @@ from tqdm import tqdm
 
 # Basic model parameters as external flags.
 FLAGS = None
+predictor_path = "/home/karim/Documents/Development/FacialCapture/Facial-Capture/models/shape_predictor_68_face_landmarks.dat"
+detector = dlib.get_frontal_face_detector()
+predictor = dlib.shape_predictor(predictor_path)
 
 
-def getFaceKeypoints(samples_cnt, openFace_landmarks):
+def getFaceKeypoints(frame_id, openFace_landmarks):
     shapes2D = []
-    frame = openFace_landmarks[openFace_landmarks['frame'] == samples_cnt]
+    frame = openFace_landmarks[openFace_landmarks['frame'] == frame_id]
 
     # skip if low confidence
-    if frame[' confidence'].values[0] < 0.93:
+    # if frame[' confidence'].values[0] < 0.93:
+    if frame[' confidence'].values[0] < 0.9:
         return None
 
     for i in range(0, 68):
@@ -29,8 +33,44 @@ def getFaceKeypoints(samples_cnt, openFace_landmarks):
 
     return shapes2D
 
+def contrast(img):
+    lab= cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    #-----Splitting the LAB image to different channels-------------------------
+    l, a, b = cv2.split(lab)
+    #-----Applying CLAHE to L-channel-------------------------------------------
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+    cl = clahe.apply(l)
+    #-----Merge the CLAHE enhanced L-channel with the a and b channel-----------
+    limg = cv2.merge((cl,a,b))
+    #-----Converting image from LAB Color model to RGB model--------------------
+    final = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
 
-def cropFace(frame, landmarks, size=256, ratio=1.5):
+    return final
+
+def getFaceKeypointsDlib(img, detector, predictor, maxImgSizeForDetection=320):
+    imgScale = 1
+    scaledImg = img
+    if max(img.shape) > maxImgSizeForDetection:
+        imgScale = maxImgSizeForDetection / float(max(img.shape))
+        scaledImg = cv2.resize(img, (int(img.shape[1] * imgScale), int(img.shape[0] * imgScale)))
+
+    dets = detector(scaledImg, 1)
+
+    if len(dets) == 0:
+        return None
+
+    shapes2D = []
+    for det in dets:
+        faceRectangle = dlib.rectangle(int(det.left() / imgScale), int(det.top() / imgScale), int(det.right() / imgScale), int(det.bottom() / imgScale))
+        dlibShape = predictor(contrast(img), faceRectangle)
+        shape2D = np.array([[p.x, p.y] for p in dlibShape.parts()])
+        shape2D = shape2D.T
+        shapes2D.append(shape2D)
+
+    return shapes2D
+
+
+def cropFace(frame, landmarks, resize=False, quality_check=False, size=256, ratio=1.5):
     # add borders to avoid cropping problems
     bordersize=400
     frame = cv2.copyMakeBorder(frame, top=bordersize, bottom=bordersize, left=bordersize, right=bordersize, borderType= cv2.BORDER_CONSTANT)
@@ -50,15 +90,24 @@ def cropFace(frame, landmarks, size=256, ratio=1.5):
 
 
     # If the cropped img is small or face region mx is small
-    if h != w or w < 140 or mx < 140:
+    if h != w or w < 190 or mx < 190:
         # print('Face too small, skipped')
         return None, None
 
+
+    if quality_check:
+        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        score = np.max(cv2.convertScaleAbs(cv2.Laplacian(gray,3)))
+        if score < 200:
+            return None, None
+
     landmarks[:, 0] = landmarks[:, 0] - x
     landmarks[:, 1] = landmarks[:, 1] - y
-    scale_ratio = float(w) / float(size)
-    landmarks = landmarks / scale_ratio 
-    roi = cv2.resize(roi, (size, size), interpolation = cv2.INTER_LINEAR)
+
+    if resize:
+        scale_ratio = float(w) / float(size)
+        landmarks = landmarks / scale_ratio 
+        roi = cv2.resize(roi, (size, size), interpolation = cv2.INTER_LINEAR)
 
     return roi, landmarks
 
@@ -89,12 +138,21 @@ def processVideo(video_path, id):
         if ret == True:
             if samples_cnt < sample_size:
                 shape2D = getFaceKeypoints(frame_cnt + 1, landmarks)
-
                 if shape2D is None:
                     continue
 
                 shape2D = np.asarray(shape2D)
                 frame, shape2D = cropFace(frame, shape2D)
+                if frame is None:
+                    continue
+
+                # dlib landmarks
+                shape2D = getFaceKeypointsDlib(frame, detector, predictor)
+                if shape2D is None:
+                    continue
+
+                shape2D = np.asarray(shape2D)[0].T
+                frame, shape2D = cropFace(frame, shape2D, resize=True)
                 if frame is None:
                     continue
 

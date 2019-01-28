@@ -64,8 +64,8 @@ def sh9(normals):
     return h
 
 
-def renderFace(identity, albedo, expressions, pose, sh_coff, flow_field,
- bfm, perspective=True, image_width = 256, image_height = 256):
+def renderFace(identity, albedo, expressions, pose, sh_coff, color_field, flow_field,
+               bfm, perspective=True, image_width = 256, image_height = 256):
     # variables
     if not identity:
         identity = np.float32(bfm.get_shape_para('zero', 2))
@@ -98,7 +98,7 @@ def renderFace(identity, albedo, expressions, pose, sh_coff, flow_field,
 
 
 
-def renderFaces(identity, expressions, pose, albedo, sh_coff, flow_field,
+def renderFaces(identity, expressions, pose, albedo, sh_coff, color_field, flow_field,
                 bfm, perspective=False, image_width = 256, image_height = 256,
                 batch_size=None): 
 
@@ -135,6 +135,9 @@ def renderFaces(identity, expressions, pose, albedo, sh_coff, flow_field,
         faces_colors.append(bfm.generate_colors(albedo[i]))
     faces_colors = tf.reshape(faces_colors, [batch_size, bfm.nver, 3])
 
+    # apply 3D flow field
+    if color_field is not None:
+        faces_colors = faces_colors + color_field
 
     # Spherical harmonics - loop approach
     albedo_colors = tf.identity(faces_colors)

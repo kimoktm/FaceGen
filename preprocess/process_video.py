@@ -15,6 +15,20 @@ detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor(predictor_path)
 
 
+def contrast(img):
+    lab= cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    #-----Splitting the LAB image to different channels-------------------------
+    l, a, b = cv2.split(lab)
+    #-----Applying CLAHE to L-channel-------------------------------------------
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+    cl = clahe.apply(l)
+    #-----Merge the CLAHE enhanced L-channel with the a and b channel-----------
+    limg = cv2.merge((cl,a,b))
+    #-----Converting image from LAB Color model to RGB model--------------------
+    final = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+
+    return final
+
 def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=320):
     imgScale = 1
     scaledImg = img
@@ -30,7 +44,7 @@ def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=320):
     shapes2D = []
     for det in dets:
         faceRectangle = dlib.rectangle(int(det.left() / imgScale), int(det.top() / imgScale), int(det.right() / imgScale), int(det.bottom() / imgScale))
-        dlibShape = predictor(img, faceRectangle)
+        dlibShape = predictor(contrast(img), faceRectangle)
         shape2D = np.array([[p.x, p.y] for p in dlibShape.parts()])
         shape2D = shape2D.T
         shapes2D.append(shape2D)
@@ -38,9 +52,9 @@ def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=320):
     return shapes2D
 
 
-def cropFace(frame, landmarks, size=256, ratio=1.5):
+def cropFace(frame, landmarks, resize=True, quality_check=False, size=256, ratio=1.5):
     # add borders to avoid cropping problems
-    bordersize=300
+    bordersize=400
     frame = cv2.copyMakeBorder(frame, top=bordersize, bottom=bordersize, left=bordersize, right=bordersize, borderType= cv2.BORDER_CONSTANT)
     landmarks = landmarks + bordersize
 
@@ -58,17 +72,27 @@ def cropFace(frame, landmarks, size=256, ratio=1.5):
 
 
     # If the cropped img is small or face region mx is small
-    if h != w or w < 150 or mx < 150:
+    if h != w or w < 200 or mx < 200:
         # print('Face too small, skipped')
         return None, None
 
+
+    if quality_check:
+        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        score = np.max(cv2.convertScaleAbs(cv2.Laplacian(gray,3)))
+        if score < 200:
+            return None, None
+
     landmarks[:, 0] = landmarks[:, 0] - x
     landmarks[:, 1] = landmarks[:, 1] - y
-    scale_ratio = float(w) / float(size)
-    landmarks = landmarks / scale_ratio 
-    roi = cv2.resize(roi, (size, size), interpolation = cv2.INTER_LINEAR)
+
+    if resize:
+        scale_ratio = float(w) / float(size)
+        landmarks = landmarks / scale_ratio 
+        roi = cv2.resize(roi, (size, size), interpolation = cv2.INTER_LINEAR)
 
     return roi, landmarks
+
 
 
 def drawPoints(img, points, color=(0, 255, 0)):
@@ -76,26 +100,19 @@ def drawPoints(img, points, color=(0, 255, 0)):
         cv2.circle(img, (int(point[0]), int(point[1])), 2, color)
 
 
+
 def processVideo(video_path, id):
     cap = cv2.VideoCapture(video_path)
     frames_num = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     sample_size = FLAGS.num_frames
 
-    # # Random samples
-    # if sample_size < frames_num:
-    #     samples = random.sample(range(0, frames_num), sample_size)
-    # else:
-    #     print('Samples are more than number of frames')
-    #     return
-
     # Sequential samples
     if sample_size < frames_num:
         samples = range(0, sample_size)
     else:
+        samples = range(0, frames_num)
         print('Samples are more than number of frames')
-        return
-
-    # validation_set = random.sample(range(0, sample_size), int(sample_size * 0.2))
+       # return
 
     frame_cnt = 0
     while(cap.isOpened()):
@@ -111,16 +128,9 @@ def processVideo(video_path, id):
                 if frame is None:
                     continue
                 fname = str(id) + '_' + str(frame_cnt)
-                # if frame_cnt in validation_set:
-                #     fname = os.path.join(FLAGS.validation_dir, fname)
-                # else:
-                #     fname = os.path.join(FLAGS.output_dir, fname)
-
                 fname = os.path.join(FLAGS.output_dir, fname)
                 cv2.imwrite(fname + ".jpg", frame)
                 np.save(fname + ".npy", shape2D)
-                # drawPoints(frame, shape2D)
-                # cv2.imshow('frame', frame)
             frame_cnt = frame_cnt + 1
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break

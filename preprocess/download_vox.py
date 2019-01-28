@@ -18,12 +18,27 @@ predictor = dlib.shape_predictor(predictor_path)
 FLAGS = None
 
 
+def contrast(img):
+    lab= cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    #-----Splitting the LAB image to different channels-------------------------
+    l, a, b = cv2.split(lab)
+    #-----Applying CLAHE to L-channel-------------------------------------------
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+    cl = clahe.apply(l)
+    #-----Merge the CLAHE enhanced L-channel with the a and b channel-----------
+    limg = cv2.merge((cl,a,b))
+    #-----Converting image from LAB Color model to RGB model--------------------
+    final = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+
+    return final
+
 def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=320):
     imgScale = 1
     scaledImg = img
     if max(img.shape) > maxImgSizeForDetection:
         imgScale = maxImgSizeForDetection / float(max(img.shape))
         scaledImg = cv2.resize(img, (int(img.shape[1] * imgScale), int(img.shape[0] * imgScale)))
+
     dets = detector(scaledImg, 1)
 
     if len(dets) == 0:
@@ -32,7 +47,7 @@ def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=320):
     shapes2D = []
     for det in dets:
         faceRectangle = dlib.rectangle(int(det.left() / imgScale), int(det.top() / imgScale), int(det.right() / imgScale), int(det.bottom() / imgScale))
-        dlibShape = predictor(img, faceRectangle)
+        dlibShape = predictor(contrast(img), faceRectangle)
         shape2D = np.array([[p.x, p.y] for p in dlibShape.parts()])
         shape2D = shape2D.T
         shapes2D.append(shape2D)
@@ -259,8 +274,11 @@ def main():
         path = os.path.join(FLAGS.dataset, identites[i])
         processIdentity(path, identites[i])
 
+    # Processed Videos: 
+    # 15438
     print('Processed Videos: ')
     print(FLAGS.processed_videos)
+
 
 
 if __name__ == '__main__':

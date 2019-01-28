@@ -4,6 +4,8 @@ from __future__ import print_function
 
 import numpy as np
 import tensorflow as tf
+from sklearn.neighbors import KDTree
+
 from . import load
 
 
@@ -114,3 +116,24 @@ class  MorphabelModel(object):
         colors = tf.reshape(colors, [int(self.nver), 3]) / 255.
         
         return colors
+
+
+    def get_nearest_neighbours(self, neighbours_num):
+        '''
+        Args:
+            neighbours_num: int
+        Returns:
+            neighbours_ids: (nver, neighbours_num)
+        '''
+
+        # slightly open mouth & closed eyes
+        exp_para     = np.zeros((self.n_exp_para, 1))
+        exp_para[0]  = -0.24
+        exp_para[1]  = -0.24
+        exp_para[12] = 0.5
+
+        vertices = self.model['shapeMU'] + self.model['expPC'].dot(exp_para * self.model['expEV'][:self.n_exp_para])
+        vertices = np.reshape(vertices, [int(3), int(len(vertices)/3)], 'F').T
+        _, neighbours_ids = KDTree(vertices).query(vertices, k=neighbours_num)
+
+        return neighbours_ids

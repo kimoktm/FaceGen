@@ -192,96 +192,6 @@ def load_uv_coords(obj_path):
     return uv_coords
 
 
-
-def bilinear_sampler(data, v, img_shape=100):
-    """
-        Args:
-            x - Input tensor [N, H, W, C]
-            v - Vector flow tensor [N, H, W, 2], tf.float32
-            (optional)
-            out  - Handling out of boundary value.
-                         Zero value is used if out="CONSTANT".
-                         Boundary values are used if out="EDGE".
-    """
-
-    # if out == "CONSTANT":
-    #     x = tf.pad(x,
-    #         ((0,0), (1,1), (1,1), (0,0)), mode='CONSTANT')
-    # elif out == "EDGE":
-    #     x = tf.pad(x,
-    #         ((0,0), (1,1), (1,1), (0,0)), mode='REFLECT')
-
-    # vy, vx = tf.split(v, 2, axis=2)
-
-    # vx0 = tf.floor(vx)
-    # vy0 = tf.floor(vy)
-    # vx1 = vx0 + 1
-    # vy1 = vy0 + 1 # [N, H, W, 1]
-
-    # H_1 = tf.cast(H_+1, tf.float32)
-    # W_1 = tf.cast(W_+1, tf.float32)
-    # iy0 = tf.clip_by_value(vy0, 0., H_1)
-    # iy1 = tf.clip_by_value(vy1, 0., H_1)
-    # ix0 = tf.clip_by_value(vx0, 0., W_1)
-    # ix1 = tf.clip_by_value(vx1, 0., W_1)
-
-    # i00 = tf.concat([iy0, ix0], 2)
-    # i01 = tf.concat([iy1, ix0], 2)
-    # i10 = tf.concat([iy0, ix1], 2)
-    # i11 = tf.concat([iy1, ix1], 2) # [N, H, W, 3]
-    # i00 = tf.cast(i00[0], tf.int32)
-    # i01 = tf.cast(i01[0], tf.int32)
-    # i10 = tf.cast(i10[0], tf.int32)
-    # i11 = tf.cast(i11[0], tf.int32)
-
-
-    x = v[:,0]
-    y = v[:,1]
-    x0 = np.floor(x).astype(int)
-    x1 = x0 + 1
-    y0 = np.floor(y).astype(int)
-    y1 = y0 + 1
-
-    x0 = np.clip(x0, 0, img_shape-1);
-    x1 = np.clip(x1, 0, img_shape-1);
-    y0 = np.clip(y0, 0, img_shape-1);
-    y1 = np.clip(y1, 0, img_shape-1);
-
-    wa = tf.convert_to_tensor((x1-x) * (y1-y), dtype=tf.float32)
-    wb = tf.convert_to_tensor((x1-x) * (y-y0), dtype=tf.float32)
-    wc = tf.convert_to_tensor((x-x0) * (y1-y), dtype=tf.float32)
-    wd = tf.convert_to_tensor((x-x0) * (y-y0), dtype=tf.float32)
-    wa = tf.expand_dims(wa, 1)
-    wb = tf.expand_dims(wb, 1)
-    wc = tf.expand_dims(wc, 1)
-    wd = tf.expand_dims(wd, 1)
-
-    data = data[0]
-
-    iy0 = tf.expand_dims(y0, 1)
-    ix0 = tf.expand_dims(x0, 1)
-    iy1 = tf.expand_dims(y1, 1)
-    ix1 = tf.expand_dims(x1, 1)
-
-    i00 = tf.concat([iy0, ix0], 1)
-    i01 = tf.concat([iy1, ix0], 1)
-    i10 = tf.concat([iy0, ix1], 1)
-    i11 = tf.concat([iy1, ix1], 1)
-
-    x00 = tf.gather_nd(data, i00)
-    x01 = tf.gather_nd(data, i01)
-    x10 = tf.gather_nd(data, i10)
-    x11 = tf.gather_nd(data, i11)
-
-    print(x00)
-    print(wa.shape)
-    output = wa*x00 + wb*x01 + wc*x10 + wd*x11
-
-    print(output)
-
-    return output
-
-
 import scipy.spatial as spatial
 from sklearn.neighbors import KDTree
 
@@ -403,7 +313,7 @@ if __name__ == '__main__':
     tf.set_random_seed(125)
 
 
-    BATCH_SIZE   = 3
+    BATCH_SIZE   = 1
     perspective  = False
     image_height = 256
     image_width  = 256
@@ -412,13 +322,13 @@ if __name__ == '__main__':
     pth          = '/home/karim/Desktop/'
     imgs         = [pth + 'x_1.png', pth + 'x_2.png', pth + 'x_3.png', pth + 'face_6.png', pth + 'face_2.png', pth + 'face_3.png', pth + 'face_4.png', pth + 'face_5.png', pth + 'face_6.png', pth + 'face_7.png',  pth + 'face_8.png']
     
-    #pth          = '/home/karim/Desktop/data/'
-    #imgs         = [pth + 'img_1.png', pth + 'img_2.png', pth + 'img_3.png', pth + 'img_4.png', pth + 'img_5.png', pth + 'img_6.png', pth + 'img_7.png',  pth + 'img_8.png']
+    pth          = '/home/karim/Desktop/test/'
+    imgs         = [pth + '41.png', pth + '12.png', pth + '30.png', pth + '29.png', pth + '16.png', pth + '17.png', pth + '18.png',  pth + '19.png']
     imgs         = imgs[:BATCH_SIZE]
 
 
     bfm = MorphabelModel(path)
-    uv_coords = load_uv_coords('/home/karim/Downloads/FaceUved.obj')
+    uv_coords = load_uv_coords('/home/karim/Downloads/FaceUved_17.obj')
     
     # spatial neighbours
     control_ids, cluster_influence = spatialNeighbours(uv_coords * flowimg_size, img_size=flowimg_size)
@@ -451,7 +361,6 @@ if __name__ == '__main__':
     sh_coff[:, 0, 2]  = 1.0
     sh_coff           = tf.Variable(sh_coff)
     flow_field        = tf.Variable(tf.zeros([BATCH_SIZE, bfm.nver, 3]))
-    normal_field      = tf.Variable(tf.zeros([BATCH_SIZE, bfm.nver, 3]))
 
 
     # # control field
@@ -465,7 +374,7 @@ if __name__ == '__main__':
     #     flow_control.append(fx)
     # flow_control = tf.stack(flow_control, axis=0)
 
-    render, pvs, colr = fr.renderFaces(identity, expressions, pose, albedo, sh_coff, flow_field + normal_field, bfm, perspective, image_width, image_height)
+    render, pvs, colr = fr.renderFaces(identity, expressions, pose, albedo, sh_coff, flow_field, bfm, perspective, image_width, image_height)
 
 
     # Load real-image
@@ -493,7 +402,7 @@ if __name__ == '__main__':
 
     # Global fitting optimizer
     # loss = 1.1 * pixel_loss + 2.5e-5 * landmarks_loss + 5e-8 * reg_loss # normalized BFM
-    loss = 1.1 * pixel_loss + 4e-4 * landmarks_loss + 1e-5 * reg_loss
+    loss = 1.1 * pixel_loss + 4e-4 * landmarks_loss + 1e-4 * reg_loss
     #loss = 1.1 * pixel_loss + 1.5e-4 * landmarks_loss + 1e-1 * reg_loss
 
 
@@ -509,7 +418,9 @@ if __name__ == '__main__':
     # laplacian regularizer
     Neighbours_size = 8
     bfmNp = MorphabelModelNP(path)
-    base_ver = bfmNp.generate_vertices(bfmNp.get_shape_para('zero'), bfmNp.get_exp_para('zero'))
+    expNp = bfmNp.get_exp_para('zero')
+    expNp[12] = 0.1
+    base_ver = bfmNp.generate_vertices(bfmNp.get_shape_para('zero'), expNp)
     neighbours_ids = nearestNeighboursIds3D(base_ver, Neighbours_size)
     # neighbours_ids = nearestNeighboursIds(uv_coords * flowimg_size, Neighbours_size)
     neighbours_ids = tf.reshape(neighbours_ids, [neighbours_ids.shape[0] * neighbours_ids.shape[1]])
@@ -533,26 +444,10 @@ if __name__ == '__main__':
     flow_loss = 1.1 * pixel_loss + 1e-5 * landmarks_loss + 1e3 * smoothness_term + 7e4 * mirror_term
     # flow_loss =1.1 * pixel_loss + 1e-4 * landmarks_loss + 4e1 * tf.reduce_mean(tf.square(flow_field))
 
-    flow_optimizer = tf.train.AdamOptimizer(0.001)
-    flow_grads_and_vars = flow_optimizer.compute_gradients(flow_loss, [identity, albedo, expressions, pose, sh_coff, flow_field])
+    flow_optimizer = tf.train.AdamOptimizer(0.004)
+    flow_grads_and_vars = flow_optimizer.compute_gradients(flow_loss, [flow_field])
     flow_opt_func = flow_optimizer.apply_gradients(flow_grads_and_vars, global_step=global_step)
 
-
-
-    neighbours_normals = tf.gather(normal_field, neighbours_ids, axis=1)
-
-    fids = range(0, bfm.nver)
-    fids = np.repeat(fids, Neighbours_size)
-    repeated_normal = tf.gather(normal_field, fids, axis=1)
-    neighbours_diff = repeated_normal - neighbours_normals
-    neighbours_diff = tf.reshape(neighbours_diff, [-1, bfm.nver, Neighbours_size, 3])
-    neighbours_diff = tf.square(tf.reduce_sum(neighbours_diff, axis=2))
-    normal_smoothness_term = tf.reduce_mean(neighbours_diff)
-
-    normal_loss = 1.1 * pixel_loss + 9e3 * tf.reduce_mean(tf.square(normal_field)) + 4 * normal_smoothness_term
-    normal_optimizer = tf.train.AdamOptimizer(0.001)
-    normal_grads_and_vars = normal_optimizer.compute_gradients(normal_loss, [normal_field])
-    normal_opt_func = normal_optimizer.apply_gradients(normal_grads_and_vars, global_step=global_step)
 
 
 
@@ -579,21 +474,11 @@ if __name__ == '__main__':
 
         # Flow field fitting
         print("Flow field fitting")
-        for i in tqdm(range(400)):
+        for i in tqdm(range(1000)):
             lss, _ = sess.run([flow_loss, flow_opt_func])
             id_params, ep_params, alb_params, flow_params = sess.run([identity, expressions, colr, flow_field])
             prog_image, prog_lnd, trgt_image, trgt_lnd = sess.run([render, pvs, trgt_render, pvt])
             showImages(prog_image, trgt_image, prog_lnd, trgt_lnd, image_height, False)
-
-
-        # # Shape from shading fitting
-        # print("Normal field fitting")
-        # for i in tqdm(range(200)):
-        #     lss, _ = sess.run([normal_loss, normal_opt_func])
-        #     normals = sess.run(normal_field)
-        #     prog_image, prog_lnd, trgt_image, trgt_lnd = sess.run([render, pvs, trgt_render, pvt])
-        #     showImages(prog_image, trgt_image, prog_lnd, trgt_lnd, image_height, False)
-
 
 
     # Save Obj file
